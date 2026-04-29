@@ -1,17 +1,35 @@
 const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4000';
+const FETCH_TIMEOUT_MS = 15000; // 15 second timeout
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    cache: 'no-store',
-  });
-  if (!res.ok) {
-    let body: unknown;
-    try { body = await res.json(); } catch { body = await res.text(); }
-    throw new Error(`${res.status} ${res.statusText}: ${JSON.stringify(body)}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    
+    if (!res.ok) {
+      let body: unknown;
+      try { body = await res.json(); } catch { body = await res.text(); }
+      throw new Error(`${res.status} ${res.statusText}: ${JSON.stringify(body)}`);
+    }
+    return res.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      if (error.message.includes('AbortError')) {
+        throw new Error('Backend request timeout. Check if backend is running at ' + BASE);
+      }
+      throw new Error('Backend offline or unreachable at ' + BASE + '. ' + error.message);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return res.json() as Promise<T>;
 }
 
 export type Health = {
@@ -94,6 +112,19 @@ export type KycStatus = {
   verifiedAt: number | null;
 };
 
+export type Quote = { amountUsd: number; amount0G: string; rate: number };
+
+export type CheckoutResponse = {
+  ok: boolean;
+  paymentIntentId: string;
+  amountUsd: number;
+  amount0G: string;
+  rate: number;
+  transaction: RampTx;
+};
+
+export type Treasury = { contract: string; balance: string; unit: string };
+
 export const api = {
   health: () => req<Health>('/health'),
   chainStatus: () => req<ChainStatus>('/api/chain/status'),
@@ -113,4 +144,20 @@ export const api = {
       body: JSON.stringify(input),
     }),
   kycStatus: (userId: string) => req<KycStatus>(`/api/kyc/status/${userId}`),
+  quote: (amountUsd: number) => req<Quote>(`/api/payments/quote/${amountUsd}`),
+  checkout: (userAddress: string, amountUsd: number) =>
+    req<CheckoutResponse>('/api/payments/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ userAddress, amountUsd }),
+    }),
+  confirmPayment: (paymentIntentId: string) =>
+    req<{ ok: boolean; transaction: RampTx; message: string }>('/api/payments/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ paymentIntentId }),
+    }),
+  treasury: () => req<Treasury>('/api/payments/treasury'),
+  getTransaction: (id: string) =>
+    req<{ transaction: RampTx; computeResult: { result?: Record<string, unknown> | { raw: string } } | null }>(
+      `/api/transactions/${id}`,
+    ),
 };

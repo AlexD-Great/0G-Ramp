@@ -32,6 +32,7 @@ import transactionRoutes from './routes/transactions';
 import kycRoutes from './routes/kyc';
 import computeRoutes from './routes/compute';
 import storageRoutes from './routes/storage';
+import paymentsRoutes from './routes/payments';
 
 const app = express();
 
@@ -71,6 +72,7 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/compute', computeRoutes);
 app.use('/api/storage', storageRoutes);
+app.use('/api/payments', paymentsRoutes);
 
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { api, type ChainStatus } from '../lib/api';
 import WalletButton from './WalletButton';
 
-export default function TopNav({ brand = 'ORBIT', active = 'BRIDGE' }: { brand?: string; active?: string }) {
+export default function TopNav({ brand = 'ORBIT', active = 'BRIDGE', onSidebarToggle }: { brand?: string; active?: string; onSidebarToggle?: () => void }) {
   const [status, setStatus] = useState<ChainStatus | null>(null);
   const [err, setErr] = useState(false);
 
@@ -33,13 +33,31 @@ export default function TopNav({ brand = 'ORBIT', active = 'BRIDGE' }: { brand?:
   return (
     <div className="top-nav glass-overlay">
       <div className="top-nav-links items-center">
+        <button
+          onClick={onSidebarToggle}
+          className="sidebar-toggle"
+          aria-label="Toggle sidebar"
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '0.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--on-surface-variant)',
+            marginRight: '1rem',
+          }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
         <Link href="/" className="sidebar-brand mr-8 text-gradient-purple" style={{ marginRight: '2rem' }}>
           {brand}
         </Link>
-        <Link href="/" className={`top-nav-link ${active === 'BRIDGE' ? 'active' : ''}`}>BRIDGE</Link>
-        <Link href="/terminal" className={`top-nav-link ${active === 'SWAP' ? 'active' : ''}`}>SWAP</Link>
-        <Link href="/node" className={`top-nav-link ${active === 'LIQUIDITY' ? 'active' : ''}`}>LIQUIDITY</Link>
-        <Link href="/insight" className={`top-nav-link ${active === 'STAKE' ? 'active' : ''}`}>STAKE</Link>
       </div>
 
       <div className="flex items-center gap-4">

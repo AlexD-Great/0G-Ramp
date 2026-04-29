@@ -60,6 +60,12 @@ export const config = {
     pollIntervalMs: parseInt(optional('BRIDGE_POLL_INTERVAL_MS', '6000'), 10),
   },
 
+  // ─── Payout (on-ramp settlement) ─────────────────────────────────────────
+  payout: {
+    contractAddress: optional('OG_PAYOUT_CONTRACT', ''),
+    usdPerOg: parseFloat(optional('USD_PER_OG', '1')),
+  },
+
   // ─── Payment Gateways ─────────────────────────────────────────────────────
   stripe: {
     secretKey: optional('STRIPE_SECRET_KEY', ''),

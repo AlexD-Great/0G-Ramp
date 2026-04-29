@@ -1,12 +1,19 @@
+'use client';
+import { useState } from 'react';
 import TopNav from '../components/TopNav';
+import Sidebar from '../components/Sidebar';
 import SystemStatus from '../components/SystemStatus';
 
 export default function Home() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   return (
     <>
-      <TopNav brand="OG RAMP CORE" active="BRIDGE" />
-      <div className="page-content flex justify-center" style={{ padding: '4rem' }}>
-        <div style={{ maxWidth: '1200px', width: '100%' }}>
+      <TopNav brand="OG RAMP CORE" active="BRIDGE" onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} />
+      <div className="flex" style={{ height: 'calc(100vh - 72px)', overflow: 'hidden' }}>
+        {sidebarOpen && <Sidebar />}
+        <div className="page-content flex justify-center" style={{ padding: '4rem', flex: 1, overflow: 'auto' }}>
+          <div style={{ maxWidth: '1200px', width: '100%' }}>
 
           <SystemStatus />
 
@@ -178,6 +185,7 @@ export default function Home() {
           </div>
 
         </div>
+      </div>
       </div>
     </>
   );
