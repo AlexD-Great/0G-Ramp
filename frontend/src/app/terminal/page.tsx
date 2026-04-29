@@ -1,7 +1,12 @@
+'use client';
+import { useState } from 'react';
 import TopNav from '../../components/TopNav';
 import Sidebar from '../../components/Sidebar';
+import BridgeForm from '../../components/BridgeForm';
+import LiveLedger from '../../components/LiveLedger';
 
 export default function TerminalPage() {
+  const [refreshKey, setRefreshKey] = useState(0);
   return (
     <>
       <TopNav brand="ORBIT" active="BRIDGE" />
@@ -131,19 +136,7 @@ export default function TerminalPage() {
                   </div>
               </div>
 
-              <div className="orbit-card mt-4 flex-col justify-between" style={{ background: 'var(--surface-container-low)' }}>
-                  <div className="flex justify-between mb-6">
-                     <div>
-                        <div className="label-sm mb-1">ESTIMATED COMPLETION</div>
-                        <div className="display-sm text-gradient-purple">~45 SECONDS</div>
-                     </div>
-                     <div className="text-right">
-                        <div className="label-sm mb-1">VERIFICATION FEE</div>
-                        <div className="display-sm">1.24 USDT</div>
-                     </div>
-                  </div>
-                  <button className="btn btn-primary w-full display-sm" style={{ padding: '1rem', letterSpacing: '0.4em' }}>CONFIRM TRANSACTION PAYLOAD</button>
-              </div>
+              <BridgeForm onCreated={() => setRefreshKey((k) => k + 1)} />
             </div>
 
             {/* Right Column: Ledger */}
@@ -153,29 +146,8 @@ export default function TerminalPage() {
                 <div className="label-sm">RECENT NET ACTIVITY</div>
               </div>
 
-              <div className="flex flex-col gap-4 mt-8">
-                {[
-                  { tx: 'TX 9238...4F', time: '2S AGO', amount: '450.00', asset: 'USDC', status: 'done', progress: '100%' },
-                  { tx: 'TX 1102...9A', time: '8S AGO', amount: '2,100.50', asset: 'DAI', status: 'pending', progress: '60%' },
-                  { tx: 'TX 0045...BB', time: '14S AGO', amount: '120.00', asset: 'USDT', status: 'wait', progress: '0%' },
-                  { tx: 'TX 8821...CC', time: '22S AGO', amount: '15,000.00', asset: 'USDT', status: 'done', progress: '100%' }
-                ].map((item, i) => (
-                  <div key={i} className={`orbit-card ghost-border ${item.status === 'pending' ? 'active-indicator' : ''}`} style={{ padding: '1rem', background: 'var(--surface-container-low)', opacity: item.status === 'wait' ? 0.5 : 1 }}>
-                    <div className="flex justify-between items-center mb-4">
-                      <div className="label-sm" style={{ color: item.status === 'pending' ? 'var(--tertiary)' : 'var(--on-surface)' }}>{item.tx}</div>
-                      <div style={{ fontSize: '0.65rem', color: 'var(--on-surface-variant)' }}>{item.time}</div>
-                    </div>
-                    <div className="flex justify-between items-end mb-2">
-                      <div style={{ fontSize: '1rem', fontWeight: 600 }}>{item.amount} <span style={{ fontSize: '0.65rem', color: 'var(--on-surface-variant)' }}>{item.asset}</span></div>
-                      {item.status === 'done' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>}
-                      {item.status === 'pending' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path><path d="M12 3v9l5 5"></path></svg>}
-                      {item.status === 'wait' && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>}
-                    </div>
-                    <div style={{ width: '100%', height: '2px', background: 'var(--outline-variant)', borderRadius: '1px' }}>
-                      <div style={{ width: item.progress, height: '100%', background: item.status === 'pending' ? 'var(--tertiary)' : 'var(--primary)' }}></div>
-                    </div>
-                  </div>
-                ))}
+              <div className="mt-8">
+                <LiveLedger refreshKey={refreshKey} />
               </div>
 
               <div className="orbit-card mt-auto" style={{ border: '1px solid var(--outline-variant)' }}>

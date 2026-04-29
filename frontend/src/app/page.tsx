@@ -1,4 +1,5 @@
 import TopNav from '../components/TopNav';
+import SystemStatus from '../components/SystemStatus';
 
 export default function Home() {
   return (
@@ -6,7 +7,9 @@ export default function Home() {
       <TopNav brand="OG RAMP CORE" active="BRIDGE" />
       <div className="page-content flex justify-center" style={{ padding: '4rem' }}>
         <div style={{ maxWidth: '1200px', width: '100%' }}>
-          
+
+          <SystemStatus />
+
           <div className="mb-4 text-gradient-purple" style={{ fontFamily: 'var(--font-display)', fontSize: '0.75rem', letterSpacing: '0.1em' }}>
                      ○ SYSTEM ACTIVE // ORBIT SYNC
           </div>
@@ -23,7 +26,7 @@ export default function Home() {
               </p>
               <div className="flex gap-4">
                 <a href="/terminal" className="btn btn-primary" style={{ padding: '1rem 2rem' }}>LAUNCH TERMINAL</a>
-                <button className="btn btn-secondary" style={{ padding: '1rem 2rem' }}>TECHNICAL DOCS</button>
+                <a href="https://docs.0g.ai/developer-hub/testnet/testnet-overview" target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ padding: '1rem 2rem' }}>TECHNICAL DOCS</a>
               </div>
             </div>
 
@@ -136,7 +139,7 @@ export default function Home() {
                         Refined cross-chain flows. Instant liquidity transfers between 0G and Ethereum.
                       </p>
                    </div>
-                   <button className="btn" style={{ background: 'var(--background)', color: 'var(--on-surface)', width: '100%', marginTop: '2rem' }}>INITIATE BRIDGE</button>
+                   <a href="/terminal" className="btn" style={{ background: 'var(--background)', color: 'var(--on-surface)', width: '100%', marginTop: '2rem', textAlign: 'center' }}>INITIATE BRIDGE</a>
                 </div>
                 <div className="orbit-card flex-col justify-between" style={{ flex: 1 }}>
                    <div>
@@ -146,7 +149,7 @@ export default function Home() {
                       </p>
                    </div>
                    <div className="flex gap-2" style={{ marginTop: '2rem' }}>
-                      <button className="btn btn-secondary flex-1">STAKE 0G</button>
+                      <a href="/node" className="btn btn-secondary flex-1" style={{ textAlign: 'center' }}>STAKE 0G</a>
                    </div>
                 </div>
              </div>
@@ -157,8 +160,8 @@ export default function Home() {
                SCALE THE <span className="text-gradient-purple">COMPUTE<br/>FRONTIER</span>
             </h2>
             <div className="flex gap-4 justify-center">
-               <button className="btn btn-primary">DEPLOY NODE</button>
-               <button className="btn btn-secondary">VIEW EXPLORER</button>
+               <a href="/node" className="btn btn-primary">DEPLOY NODE</a>
+               <a href="https://chainscan-galileo.0g.ai" target="_blank" rel="noreferrer" className="btn btn-secondary">VIEW EXPLORER</a>
             </div>
           </div>
 

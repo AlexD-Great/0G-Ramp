@@ -30,20 +30,24 @@ export default function Sidebar() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5H5a2 2 0 0 1 0-4h16v-4H3z"></path></svg>
           ASSETS
         </Link>
+        <Link href="/kyc" className={`nav-item ${pathname === '/kyc' ? 'active' : ''}`}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          KYC
+        </Link>
         <Link href="/" className={`nav-item ${pathname === '/' ? 'active' : ''}`}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19 12h3"></path><path d="M2 12h3"></path><path d="M12 2v3"></path><path d="M12 19v3"></path><path d="M16.95 7.05l2.12-2.12"></path><path d="M4.93 19.07l2.12-2.12"></path><path d="M16.95 16.95l2.12 2.12"></path><path d="M4.93 4.93l2.12 2.12"></path></svg>
-          NODES
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+          HOME
         </Link>
       </div>
       
       <div style={{ marginTop: 'auto', borderTop: '1px solid var(--outline-variant)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <a href="#" className="nav-item">
+        <a href="https://docs.0g.ai" target="_blank" rel="noreferrer" className="nav-item">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
           DOCS
         </a>
-        <a href="#" className="nav-item">
+        <a href="https://chainscan-galileo.0g.ai" target="_blank" rel="noreferrer" className="nav-item">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-          SUPPORT
+          EXPLORER
         </a>
       </div>
     </div>

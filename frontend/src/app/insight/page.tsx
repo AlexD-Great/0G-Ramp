@@ -1,5 +1,6 @@
 import TopNav from '../../components/TopNav';
 import Sidebar from '../../components/Sidebar';
+import LatestReceipt from '../../components/LatestReceipt';
 
 export default function InsightPage() {
   return (
@@ -24,45 +25,7 @@ export default function InsightPage() {
              {/* Left Main Content */}
              <div className="flex flex-col gap-8" style={{ flex: 2 }}>
                 
-                <div className="orbit-card ghost-border flex" style={{ padding: '2.5rem', background: 'var(--surface-container-low)' }}>
-                   <div style={{ flex: 1, paddingRight: '2rem', borderRight: '1px dashed var(--outline-variant)' }}>
-                      <div className="flex gap-4 items-center mb-8">
-                         <div style={{ width: '64px', height: '64px', background: 'var(--primary)', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--on-primary-fixed)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </div>
-                         </div>
-                         <div>
-                            <h2 className="display-md mb-1" style={{ fontStyle: 'italic', color: 'var(--on-surface)' }}>VERIFIED</h2>
-                            <div className="label-sm">CRYPTOGRAPHIC PROOF-OF-ACTION<br/>ANCHOR</div>
-                         </div>
-                      </div>
-
-                      <div className="orbit-card ghost-border mb-4" style={{ padding: '1rem', background: 'var(--surface)' }}>
-                         <div className="label-sm mb-2 text-gradient">STORAGE ROOT HASH</div>
-                         <div style={{ fontFamily: 'monospace', fontSize: '0.75rem', wordBreak: 'break-all' }}>sha256:8f2a1b9c3d4e5f6a7b8c9d0e1f2a3<br/>b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0</div>
-                      </div>
-
-                      <div className="orbit-card ghost-border" style={{ padding: '1rem', background: 'var(--surface)' }}>
-                         <div className="label-sm mb-2 text-gradient">ZK PROOF AFFIDAVIT</div>
-                         <div style={{ fontFamily: 'monospace', fontSize: '0.75rem', wordBreak: 'break-all' }}>zksync:v2:7721 9901 alpha 0x992...bc01</div>
-                      </div>
-                   </div>
-
-                   <div className="flex flex-col justify-between" style={{ paddingLeft: '2rem', width: '200px' }}>
-                      <div className="text-right">
-                         <div className="label-sm text-gradient-purple">TIMESTAMP ISO 8601</div>
-                         <div style={{ fontSize: '0.75rem', color: 'var(--on-surface-variant)' }}>2024-10-24<br/>14:22:01.442 Z</div>
-                      </div>
-                      <p style={{ fontSize: '0.875rem', color: 'var(--on-surface-variant)', lineHeight: '1.6' }}>
-                         This transaction has been cryptographically validated across the <strong style={{ color: 'var(--primary)' }}>Orbit Compute Mesh</strong>. Identity markers have been hashed and anchored immutably to the sovereign storage cluster.
-                      </p>
-                      <div className="flex flex-col gap-2 mt-4">
-                         <button className="btn btn-primary" style={{ padding: '0.75rem' }}>VIEW ON EXPLORER</button>
-                         <button className="btn btn-secondary" style={{ padding: '0.75rem' }}>DOWNLOAD RECEIPT</button>
-                      </div>
-                   </div>
-                </div>
+                <LatestReceipt />
 
                 <div className="orbit-card ghost-border flex flex-col" style={{ flex: 1, padding: '2rem', background: 'var(--surface-container-lowest)' }}>
                    <div className="flex justify-between items-center mb-6">
@@ -165,7 +128,7 @@ export default function InsightPage() {
                    <p style={{ fontSize: '0.875rem', marginBottom: '2rem', color: 'rgba(32, 0, 95, 0.7)' }}>
                       Generate a one-time cryptographic link for 3rd party identity validation.
                    </p>
-                   <button className="btn" style={{ background: 'var(--on-primary-fixed)', color: 'var(--primary)', width: '100%' }}>GENERATE ONE TIME LINK</button>
+                   <a href="/terminal" className="btn" style={{ background: 'var(--on-primary-fixed)', color: 'var(--primary)', width: '100%', textAlign: 'center' }}>NEW TRANSACTION</a>
                 </div>
 
              </div>

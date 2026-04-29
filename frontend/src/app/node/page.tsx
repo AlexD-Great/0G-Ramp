@@ -1,5 +1,6 @@
 import TopNav from '../../components/TopNav';
 import Sidebar from '../../components/Sidebar';
+import LiveLedgerTable from '../../components/LiveLedgerTable';
 
 export default function NodePage() {
   return (
@@ -25,8 +26,8 @@ export default function NodePage() {
                 </div>
 
                 <div className="flex gap-4">
-                   <button className="btn btn-primary" style={{ padding: '1rem 3rem' }}>DEPOSIT</button>
-                   <button className="btn btn-secondary" style={{ padding: '1rem 3rem' }}>WITHDRAW</button>
+                   <a href="/terminal" className="btn btn-primary" style={{ padding: '1rem 3rem' }}>DEPOSIT</a>
+                   <a href={`https://chainscan-galileo.0g.ai/address/0xf82Fc25C4A72aE6DCB42bB47Bf98a02cA97099a1`} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ padding: '1rem 3rem' }}>VIEW VAULT</a>
                 </div>
              </div>
 
@@ -92,76 +93,7 @@ export default function NodePage() {
           </div>
 
           <div className="orbit-card ghost-border" style={{ padding: '2.5rem', background: 'var(--surface-container-low)' }}>
-             <div className="flex justify-between items-center mb-8">
-                <h2 className="label-md" style={{ letterSpacing: '0.15em', color: 'var(--on-surface)' }}>CHRONOLOGICAL LEDGER</h2>
-                <div className="flex gap-2">
-                   <div className="input-container" style={{ margin: 0, padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--on-surface-variant)" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                      <input type="text" placeholder="Filter ledger..." style={{ fontSize: '0.75rem' }} />
-                   </div>
-                   <button className="btn btn-secondary" style={{ padding: '0.5rem' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
-                   </button>
-                </div>
-             </div>
-
-             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', fontFamily: 'var(--font-display)' }}>
-                <thead>
-                   <tr style={{ color: 'var(--on-surface-variant)', borderBottom: '1px solid var(--outline-variant)', textAlign: 'left' }}>
-                      <th style={{ padding: '1rem', fontWeight: 'normal' }}>TIMESTAMP</th>
-                      <th style={{ padding: '1rem', fontWeight: 'normal' }}>OPERATION</th>
-                      <th style={{ padding: '1rem', fontWeight: 'normal' }}>ASSET</th>
-                      <th style={{ padding: '1rem', fontWeight: 'normal' }}>MAGNITUDE</th>
-                      <th style={{ padding: '1rem', fontWeight: 'normal' }}>CLEARANCE</th>
-                      <th style={{ padding: '1rem', fontWeight: 'normal' }}>NETWORK REF</th>
-                   </tr>
-                </thead>
-                <tbody>
-                   <tr style={{ borderBottom: '1px solid var(--outline-variant)' }}>
-                      <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>2024.05.24 14:32</td>
-                      <td style={{ padding: '1.5rem 1rem' }} className="flex items-center gap-2">
-                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
-                         RAMP IN
-                      </td>
-                      <td style={{ padding: '1.5rem 1rem', color: 'var(--primary)' }}>USDT</td>
-                      <td style={{ padding: '1.5rem 1rem', fontWeight: 'bold' }}>+ 1,200.00</td>
-                      <td style={{ padding: '1.5rem 1rem' }}>
-                         <span style={{ border: '1px solid var(--outline-variant)', padding: '0.25rem 0.5rem', borderRadius: '1rem', fontSize: '0.65rem' }}>CLEARED</span>
-                      </td>
-                      <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>0x71A...BD4E</td>
-                   </tr>
-                   <tr style={{ borderBottom: '1px solid var(--outline-variant)' }}>
-                      <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>2024.05.24 11:05</td>
-                      <td style={{ padding: '1.5rem 1rem' }} className="flex items-center gap-2">
-                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tertiary)" strokeWidth="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
-                         BRIDGE
-                      </td>
-                      <td style={{ padding: '1.5rem 1rem', color: 'var(--tertiary)' }}>ETH</td>
-                      <td style={{ padding: '1.5rem 1rem', fontWeight: 'bold' }}>- 0.450.00</td>
-                      <td style={{ padding: '1.5rem 1rem' }}>
-                         <span style={{ border: '1px solid var(--tertiary)', color: 'var(--tertiary)', padding: '0.25rem 0.5rem', borderRadius: '1rem', fontSize: '0.65rem' }}>PENDING</span>
-                      </td>
-                      <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>0x922...EE12</td>
-                   </tr>
-                   <tr style={{ borderBottom: '1px solid var(--outline-variant)' }}>
-                      <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>2024.05.23 23:59</td>
-                      <td style={{ padding: '1.5rem 1rem' }} className="flex items-center gap-2">
-                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
-                         RAMP IN
-                      </td>
-                      <td style={{ padding: '1.5rem 1rem', color: 'var(--primary)' }}>USDC</td>
-                      <td style={{ padding: '1.5rem 1rem', fontWeight: 'bold' }}>+ 5,000.00</td>
-                      <td style={{ padding: '1.5rem 1rem' }}>
-                         <span style={{ border: '1px solid var(--outline-variant)', padding: '0.25rem 0.5rem', borderRadius: '1rem', fontSize: '0.65rem' }}>CLEARED</span>
-                      </td>
-                      <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>0x442...CD91</td>
-                   </tr>
-                </tbody>
-             </table>
-             
-             <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-               <button className="btn btn-tertiary" style={{ width: '100%', border: '1px solid var(--outline-variant)' }}>RETRIEVE ARCHIVAL DATA</button>
-             </div>
+             <LiveLedgerTable />
           </div>
 
           <div className="data-ribbon justify-end text-gradient" style={{ padding: '0.5rem 0', margin: 'auto 0 -2rem 0', background: 'transparent' }}>
