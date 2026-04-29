@@ -25,7 +25,7 @@ router.get('/status', async (_req: Request, res: Response) => {
       name: network.name,
       blockNumber: block,
       rpc: 'https://evmrpc-testnet.0g.ai',
-      explorer: 'https://chainscan-newton.0g.ai',
+      explorer: 'https://chainscan-galileo.0g.ai',
     });
   } catch (err) {
     res.status(502).json({ error: 'Chain unreachable', detail: String(err) });

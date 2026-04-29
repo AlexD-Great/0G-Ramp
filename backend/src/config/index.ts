@@ -17,23 +17,22 @@ export const config = {
     frontendOrigin: optional('FRONTEND_ORIGIN', 'http://localhost:3000'),
   },
 
-  // ─── 0G Newton Testnet ───────────────────────────────────────────────────
+  // ─── 0G Galileo Testnet ──────────────────────────────────────────────────
   ogChain: {
     rpc: optional('OG_CHAIN_RPC', 'https://evmrpc-testnet.0g.ai'),
-    chainId: parseInt(optional('OG_CHAIN_ID', '16600'), 10),
-    explorerUrl: 'https://chainscan-newton.0g.ai',
+    chainId: parseInt(optional('OG_CHAIN_ID', '16602'), 10),
+    explorerUrl: 'https://chainscan-galileo.0g.ai',
   },
 
-  // ─── 0G Storage ──────────────────────────────────────────────────────────
+  // ─── 0G Storage (Galileo) ────────────────────────────────────────────────
   ogStorage: {
     indexerRpc: optional(
       'OG_STORAGE_INDEXER_RPC',
       'https://indexer-storage-testnet-standard.0g.ai'
     ),
-    // Flow contract on 0G Newton Testnet
     flowContract: optional(
       'OG_STORAGE_FLOW_CONTRACT',
-      '0xbD2C3F0E65eDF5582141C35969d66e205f5cc79'
+      '0x22E03a6A89B950F1c82ec5e74F8eCa321a105296'
     ),
   },
 

@@ -14,12 +14,10 @@ import { validateBody, internalOnly } from '../middleware/auth';
 import { ogCompute } from '../services/ogCompute';
 import { ogStorage } from '../services/ogStorage';
 import { wallet } from '../services/wallet';
+import { txStore } from '../services/store';
 import { RampTransaction } from '../types';
 
 const router = Router();
-
-// In-memory store – replace with a DB in production
-const txStore = new Map<string, RampTransaction>();
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -75,6 +73,7 @@ router.post('/initiate', validateBody(InitiateSchema), async (req: Request, res:
       stored.computeJobId = job.jobId;
       stored.status = 'verifying';
       stored.updatedAt = Date.now();
+      txStore.set(tx.id, stored);
     }
   }).catch(console.error);
 
@@ -150,7 +149,7 @@ router.post('/payout', internalOnly, validateBody(PayoutSchema), async (req: Req
 
 // GET /api/transactions  (list all – dev only)
 router.get('/', (_req: Request, res: Response) => {
-  const all = Array.from(txStore.values()).sort((a, b) => b.createdAt - a.createdAt);
+  const all = Array.from(txStore.values()).sort((a: RampTransaction, b: RampTransaction) => b.createdAt - a.createdAt);
   res.json({ transactions: all, count: all.length });
 });
 

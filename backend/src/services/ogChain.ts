@@ -32,7 +32,7 @@ class OgChainService {
   constructor() {
     this.provider = new ethers.JsonRpcProvider(config.ogChain.rpc, {
       chainId: config.ogChain.chainId,
-      name: '0g-newton-testnet',
+      name: '0g-galileo-testnet',
     });
 
     if (config.hotWallet.privateKey) {
