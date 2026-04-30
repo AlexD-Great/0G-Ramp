@@ -15,13 +15,37 @@ A custodial on/off-ramp built on the **0G** stack. Every ramp transaction is ver
 5. The ramp tx is updated with `txHash0G` + `storageRootHash` and marked `settled`. The user can download the receipt or click through to chainscan.
 
 ```
-┌──────────────┐   HTTP   ┌─────────────────────┐   RPC + SDK   ┌──────────────────────┐
-│ Next.js UI   │ ───────► │ Express backend     │ ────────────► │ 0G Galileo Testnet   │
-│ MetaMask     │          │ + bridge watcher    │               │  - Chain (16602)     │
-└──────────────┘ ◄─────── │ + persistent state  │               │  - Storage indexer   │
-                          └─────────────────────┘               │  - Compute network   │
-                                                                │  - OGRampBridge.sol  │
-                                                                └──────────────────────┘
+┌─────────────────────────────┐                  ┌──────────────────────────────────┐
+│  FRONTEND (Next.js 16)      │                  │  0G GALILEO TESTNET (chain 16602)│
+│                             │                  │                                  │
+│  /          home + status   │                  │  ┌──────────────────────────┐   │
+│  /terminal  bridge form ────┼──┐               │  │ OGRampBridge.sol         │   │
+│  /node      tx ledger       │  │  signed tx    │  │   deposit(memo) payable  │   │
+│  /insight   latest receipt  │  │ ──────────────┼──►   emit Deposit(...)      │   │
+│  /kyc       doc upload      │  │               │  └────────────┬─────────────┘   │
+│                             │  │               │               │ events           │
+│  ethers v6  + MetaMask      │  │               │  ┌────────────▼─────────────┐   │
+└──────────────┬──────────────┘  │               │  │ Flow contract (Storage)  │   │
+               │  HTTP / JSON    │   RPC poll    │  │   anchors Merkle roots   │   │
+               ▼                 │ ◄─────────────┼──┴──────────────────────────┘   │
+┌─────────────────────────────┐  │               │  ┌──────────────────────────┐   │
+│  BACKEND (Express + TS)     │  │               │  │ 0G Storage indexer       │   │
+│                             │  │  RPC / SDK    │  │   immutable blob store   │   │
+│  routes/                    │──┼──────────────►│  └──────────────────────────┘   │
+│   chain  transactions       │  │               │  ┌──────────────────────────┐   │
+│   storage  compute          │  │               │  │ 0G Compute serving net   │   │
+│   kyc      payments         │  │               │  │   AI inference + ledger  │   │
+│                             │  │               │  └──────────────────────────┘   │
+│  services/                  │  │               └──────────────────────────────────┘
+│   ogChain    ogStorage      │  │
+│   ogCompute  wallet         │  │
+│   payout     store          │  │               ┌──────────────────────────────────┐
+│                             │  │               │  PERSISTENCE (backend/data/*.json)│
+│  bridgeWatcher ─────────────┼──┘               │   transactions.json              │
+│   poll → decode memo →      │                  │   watcher.json (cursor)          │
+│   compute risk → settle →   │ ◄────────────────┤   watcher-seen.json (dedup)      │
+│   anchor 0G Storage receipt │   read / write   └──────────────────────────────────┘
+└─────────────────────────────┘
 ```
 
 ---
