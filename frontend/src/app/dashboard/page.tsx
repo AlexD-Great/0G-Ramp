@@ -72,7 +72,7 @@ function DashboardInner() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex justify-between items-end">
+      <div className="flex justify-between items-end stack-on-mobile gap-4">
         <div>
           <div className="label-sm text-gradient-purple mb-2">SOVEREIGN DASHBOARD</div>
           <h1 className="display-md">YOUR ACCOUNT</h1>
@@ -140,7 +140,7 @@ function DashboardInner() {
             No ramp transactions yet.{verified ? ' Head to BUY 0G to get started.' : ''}
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-cards table-scroll">
             <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--outline-variant)', textAlign: 'left' }}>
@@ -167,6 +167,22 @@ function DashboardInner() {
                 ))}
               </tbody>
             </table>
+            {txs.map((t) => (
+              <div key={`card-${t.id}`} className="row-card">
+                <div className="row-card-line"><span className="k">When</span><span className="v">{new Date(t.createdAt).toLocaleString()}</span></div>
+                <div className="row-card-line"><span className="k">USD In</span><span className="v">${t.amountIn}</span></div>
+                <div className="row-card-line"><span className="k">0G Out</span><span className="v">{t.amountOut}</span></div>
+                <div className="row-card-line"><span className="k">Status</span><span className="v"><StatusPill status={t.status} /></span></div>
+                <div className="row-card-line">
+                  <span className="k">Explorer</span>
+                  <span className="v">
+                    {t.txHash0G
+                      ? <a href={`${EXPLORER}/tx/${t.txHash0G}`} target="_blank" rel="noreferrer" style={{ color: 'var(--tertiary)' }}>{t.txHash0G.slice(0, 10)}…</a>
+                      : '—'}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

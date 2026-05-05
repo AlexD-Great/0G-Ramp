@@ -337,3 +337,140 @@ ul {
 .status-dot.active {
   box-shadow: 0 0 8px var(--primary);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * MOBILE BOTTOM NAV (visible <768px)
+ * ───────────────────────────────────────────────────────────────────────── */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background-color: var(--surface-container);
+  border-top: 1px solid var(--outline-variant);
+  z-index: 50;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 0.5rem;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  color: var(--on-surface-variant);
+  font-size: 0.6rem;
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: color 0.15s ease;
+}
+.bottom-nav-item.active {
+  color: var(--primary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * TABLET (<1024px)
+ * ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .page-content {
+    padding: 1.5rem !important;
+  }
+  .display-lg { font-size: 2.5rem; }
+  .display-md { font-size: 2rem; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * MOBILE (<768px)
+ * ───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Hide sidebar entirely; bottom nav takes over */
+  .sidebar { display: none !important; }
+
+  /* Show bottom nav */
+  .bottom-nav { display: flex; }
+
+  /* Reserve space for bottom nav so content isn't hidden behind it */
+  .page-content {
+    padding: 1rem !important;
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0) + 1rem) !important;
+  }
+
+  /* Hide hamburger toggle (desktop sidebar control) */
+  .sidebar-toggle { display: none !important; }
+
+  /* Slimmer top nav on mobile */
+  .top-nav {
+    padding: 0 1rem;
+    height: 60px;
+  }
+
+  /* Type scale */
+  .display-lg { font-size: 2rem; }
+  .display-md { font-size: 1.5rem; }
+  .display-sm { font-size: 1.125rem; }
+
+  /* Default flex rows stack on mobile (opt-out via .stay-row utility) */
+  .stack-on-mobile {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .stack-on-mobile > * {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Tighter card padding */
+  .orbit-card {
+    padding: 1rem !important;
+  }
+
+  /* Tables → horizontally scroll wrapper */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Tables that should switch to stacked cards add this class on the wrapper */
+  .table-cards table { display: none; }
+  .table-cards .row-card { display: block; }
+}
+
+/* On desktop these card-rows are hidden — the table is the canonical view. */
+@media (min-width: 769px) {
+  .table-cards .row-card { display: none; }
+}
+
+.row-card {
+  display: none;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--rounded-sm);
+  padding: 0.875rem 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+.row-card .row-card-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.2rem 0;
+}
+.row-card .row-card-line .k {
+  color: var(--on-surface-variant);
+  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+.row-card .row-card-line .v {
+  color: var(--on-surface);
+  font-family: monospace;
+  text-align: right;
+  word-break: break-all;
+}

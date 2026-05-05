@@ -151,7 +151,7 @@ function BuyPageInner() {
 
   return (
     <>
-      <div className="flex justify-between items-end">
+      <div className="flex justify-between items-end stack-on-mobile gap-4">
         <div>
           <div className="label-sm text-gradient-purple mb-2">SOVEREIGN ON-RAMP</div>
           <h1 className="display-md">BUY 0G TOKENS</h1>
@@ -184,7 +184,7 @@ function BuyPageInner() {
             </div>
           )}
 
-          <div className="flex gap-4 items-end">
+          <div className="flex gap-4 items-end stack-on-mobile">
             <div style={{ flex: 1 }}>
               <div className="label-sm mb-2">YOU PAY (USD)</div>
               <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-container-lowest)', border: '1px solid var(--outline-variant)', borderRadius: 'var(--rounded-sm)', padding: '0.5rem 1rem' }}>

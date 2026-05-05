@@ -67,30 +67,60 @@ export default function LiveLedgerTable() {
           {txs.length === 0 ? 'NO TRANSACTIONS YET' : 'NO MATCHES FOR FILTER'}
         </div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', fontFamily: 'var(--font-display)' }}>
-          <thead>
-            <tr style={{ color: 'var(--on-surface-variant)', borderBottom: '1px solid var(--outline-variant)', textAlign: 'left' }}>
-              <th style={{ padding: '1rem', fontWeight: 'normal' }}>TIMESTAMP</th>
-              <th style={{ padding: '1rem', fontWeight: 'normal' }}>ROUTE</th>
-              <th style={{ padding: '1rem', fontWeight: 'normal' }}>ASSET</th>
-              <th style={{ padding: '1rem', fontWeight: 'normal' }}>AMOUNT</th>
-              <th style={{ padding: '1rem', fontWeight: 'normal' }}>STATUS</th>
-              <th style={{ padding: '1rem', fontWeight: 'normal' }}>USER</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.slice(0, 25).map((tx) => (
-              <tr key={tx.id} style={{ borderBottom: '1px solid var(--outline-variant)' }}>
-                <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>{fmtTime(tx.createdAt)}</td>
-                <td style={{ padding: '1.5rem 1rem' }}>{tx.sourceChain} → {tx.destChain}</td>
-                <td style={{ padding: '1.5rem 1rem', color: 'var(--primary)' }}>{tx.assetSymbol}</td>
-                <td style={{ padding: '1.5rem 1rem', fontWeight: 'bold' }}>{tx.amountIn}</td>
-                <td style={{ padding: '1.5rem 1rem' }}>
-                  <span style={{ border: `1px solid ${statusColor(tx.status)}`, color: statusColor(tx.status), padding: '0.25rem 0.5rem', borderRadius: '1rem', fontSize: '0.65rem', textTransform: 'uppercase' }}>
+        <div className="table-cards table-scroll">
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', fontFamily: 'var(--font-display)' }}>
+            <thead>
+              <tr style={{ color: 'var(--on-surface-variant)', borderBottom: '1px solid var(--outline-variant)', textAlign: 'left' }}>
+                <th style={{ padding: '1rem', fontWeight: 'normal' }}>TIMESTAMP</th>
+                <th style={{ padding: '1rem', fontWeight: 'normal' }}>ROUTE</th>
+                <th style={{ padding: '1rem', fontWeight: 'normal' }}>ASSET</th>
+                <th style={{ padding: '1rem', fontWeight: 'normal' }}>AMOUNT</th>
+                <th style={{ padding: '1rem', fontWeight: 'normal' }}>STATUS</th>
+                <th style={{ padding: '1rem', fontWeight: 'normal' }}>USER</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.slice(0, 25).map((tx) => (
+                <tr key={tx.id} style={{ borderBottom: '1px solid var(--outline-variant)' }}>
+                  <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>{fmtTime(tx.createdAt)}</td>
+                  <td style={{ padding: '1.5rem 1rem' }}>{tx.sourceChain} → {tx.destChain}</td>
+                  <td style={{ padding: '1.5rem 1rem', color: 'var(--primary)' }}>{tx.assetSymbol}</td>
+                  <td style={{ padding: '1.5rem 1rem', fontWeight: 'bold' }}>{tx.amountIn}</td>
+                  <td style={{ padding: '1.5rem 1rem' }}>
+                    <span style={{ border: `1px solid ${statusColor(tx.status)}`, color: statusColor(tx.status), padding: '0.25rem 0.5rem', borderRadius: '1rem', fontSize: '0.65rem', textTransform: 'uppercase' }}>
+                      {tx.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>
+                    {tx.txHash0G ? (
+                      <a href={`${EXPLORER}/tx/${tx.txHash0G}`} target="_blank" rel="noreferrer" style={{ color: 'var(--tertiary)' }}>
+                        {tx.txHash0G.slice(0, 6)}…{tx.txHash0G.slice(-4)}
+                      </a>
+                    ) : (
+                      <span>{tx.userAddress.slice(0, 6)}…{tx.userAddress.slice(-4)}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.slice(0, 25).map((tx) => (
+            <div key={`card-${tx.id}`} className="row-card">
+              <div className="row-card-line"><span className="k">When</span><span className="v">{fmtTime(tx.createdAt)}</span></div>
+              <div className="row-card-line"><span className="k">Route</span><span className="v">{tx.sourceChain} → {tx.destChain}</span></div>
+              <div className="row-card-line"><span className="k">Asset</span><span className="v" style={{ color: 'var(--primary)' }}>{tx.assetSymbol}</span></div>
+              <div className="row-card-line"><span className="k">Amount</span><span className="v" style={{ fontWeight: 'bold' }}>{tx.amountIn}</span></div>
+              <div className="row-card-line">
+                <span className="k">Status</span>
+                <span className="v">
+                  <span style={{ border: `1px solid ${statusColor(tx.status)}`, color: statusColor(tx.status), padding: '0.15rem 0.45rem', borderRadius: '1rem', fontSize: '0.6rem', textTransform: 'uppercase' }}>
                     {tx.status}
                   </span>
-                </td>
-                <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>
+                </span>
+              </div>
+              <div className="row-card-line">
+                <span className="k">User</span>
+                <span className="v">
                   {tx.txHash0G ? (
                     <a href={`${EXPLORER}/tx/${tx.txHash0G}`} target="_blank" rel="noreferrer" style={{ color: 'var(--tertiary)' }}>
                       {tx.txHash0G.slice(0, 6)}…{tx.txHash0G.slice(-4)}
@@ -98,11 +128,11 @@ export default function LiveLedgerTable() {
                   ) : (
                     <span>{tx.userAddress.slice(0, 6)}…{tx.userAddress.slice(-4)}</span>
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </>
   );

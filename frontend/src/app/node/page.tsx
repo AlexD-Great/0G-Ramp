@@ -45,7 +45,7 @@ export default function NodePage() {
         <Sidebar />
         <div className="page-content flex flex-col gap-8" style={{ padding: '2rem 3rem', maxWidth: '1200px', flex: 1, overflowY: 'auto' }}>
 
-          <div className="flex gap-8">
+          <div className="flex gap-8 stack-on-mobile">
             <div className="orbit-card ghost-border flex-col justify-center" style={{ flex: 2, padding: '2.5rem', background: 'var(--surface-container-lowest)' }}>
               <div className="flex justify-between items-start mb-8">
                 <div>
@@ -92,7 +92,7 @@ export default function NodePage() {
           </div>
 
           <div className="data-ribbon justify-end text-gradient" style={{ padding: '0.5rem 0', margin: 'auto 0 -2rem 0', background: 'transparent' }}>
-            <div className="flex gap-8" style={{ fontSize: '0.7rem' }}>
+            <div className="flex gap-8 stack-on-mobile" style={{ fontSize: '0.7rem' }}>
               <div style={{ color: 'var(--on-surface)' }}>0G GALILEO TESTNET</div>
               {chain && (
                 <div className="flex items-center gap-2">
