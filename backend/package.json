@@ -7,7 +7,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "watcher": "ts-node-dev --respawn --transpile-only src/services/bridgeWatcher.ts"
+    "watcher": "ts-node-dev --respawn --transpile-only src/services/bridgeWatcher.ts",
+    "fund-treasury": "ts-node-dev --transpile-only scripts/fund-treasury.ts"
   },
   "dependencies": {
     "@0glabs/0g-serving-broker": "^0.7.4",

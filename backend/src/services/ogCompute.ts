@@ -35,12 +35,25 @@ class OgComputeService {
 
   /**
    * Create / top-up the on-chain ledger that funds inference requests.
+   * `addLedger` only works once (first-time creation). For subsequent top-ups
+   * we use `depositFund`. Try the cheap path first (deposit) and fall back to
+   * create-if-missing if it errors with "account does not exist".
    * @param amount - Amount in 0G tokens (e.g. 0.1 for 0.1 A0GI)
    */
   async depositLedger(amount: number): Promise<void> {
     const broker = await this.getBroker();
-    await broker.ledger.addLedger(amount);
-    console.log(`[0G Compute] Deposited ${amount} A0GI into compute ledger`);
+    try {
+      await broker.ledger.depositFund(amount);
+      console.log(`[0G Compute] Deposited ${amount} A0GI into existing ledger`);
+    } catch (err) {
+      const msg = String(err);
+      if (/does not exist|not found|no.*account/i.test(msg)) {
+        await broker.ledger.addLedger(amount);
+        console.log(`[0G Compute] Created ledger with ${amount} A0GI`);
+      } else {
+        throw err;
+      }
+    }
   }
 
   async getLedgerBalance(): Promise<string> {

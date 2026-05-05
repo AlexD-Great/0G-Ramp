@@ -1,1 +1,17 @@
-{}
+{
+  "a915523a-c11b-4d0c-a6cf-65cdd2d39ad7": {
+    "id": "a915523a-c11b-4d0c-a6cf-65cdd2d39ad7",
+    "userAddress": "0xa1fee75a45109b9aeccbf49d1d6d26207c94def9",
+    "assetSymbol": "0G",
+    "amountIn": "5",
+    "amountOut": "0.049750",
+    "feeAmount": "0.000250",
+    "sourceChain": "STRIPE-USD",
+    "destChain": "0G-Galileo",
+    "status": "settled",
+    "createdAt": 1778014023134,
+    "updatedAt": 1778014118575,
+    "computeJobId": "risk_678b5508-2f4e-47f4-9c85-319c422fb9f5",
+    "txHash0G": "0x4289da3842e82ee31ec72c3d194efb316360d42176452cbb29dcbbb5705ab4c8"
+  }
+}
