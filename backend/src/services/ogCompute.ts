@@ -1,23 +1,4 @@
-/**
- * ogCompute.ts – 0G Compute (Serving Network) service
- *
- * Uses @0glabs/0g-serving-broker to submit AI inference requests to
- * providers on the 0G decentralized compute network (Newton Testnet).
- *
- * The serving network is an OpenAI-compatible inference layer where:
- *   - Providers register AI models and publish endpoints
- *   - Billing flows through a pre-funded on-chain ledger
- *   - Each request is signed with settlement headers (acting as proof-of-payment)
- *
- * In 0G Ramp, compute is used for:
- *   1. KYC document verification  – AI-assisted document analysis
- *   2. Transaction risk scoring   – AML/fraud screening
- *   3. Cross-chain proof checking – bridge deposit verification
- *
- * Testnet contract addresses (auto-detected by the broker):
- *   Ledger:    0xE70830508dAc0A97e6c087c75f402f9Be669E406
- *   Inference: 0xa79F4c8311FF93C06b8CfB403690cc987c93F91E
- */
+
 
 import { createZGComputeNetworkBroker, ZGComputeNetworkBroker } from '@0glabs/0g-serving-broker';
 import { ethers } from 'ethers';

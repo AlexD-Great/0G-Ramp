@@ -78,4 +78,15 @@ export const config = {
 
   // ─── Security ─────────────────────────────────────────────────────────────
   apiSecret: optional('API_SECRET', 'dev-secret'),
+
+  // ─── Firebase (Auth + Firestore) ─────────────────────────────────────────
+  // Either supply FIREBASE_SERVICE_ACCOUNT (full JSON, single line) OR the
+  // three split vars (PROJECT_ID + CLIENT_EMAIL + PRIVATE_KEY). Render makes
+  // the split form easier; for local dev the JSON form is more compact.
+  firebase: {
+    serviceAccountJson: optional('FIREBASE_SERVICE_ACCOUNT', ''),
+    projectId: optional('FIREBASE_PROJECT_ID', ''),
+    clientEmail: optional('FIREBASE_CLIENT_EMAIL', ''),
+    privateKey: optional('FIREBASE_PRIVATE_KEY', '').replace(/\\n/g, '\n'),
+  },
 } as const;

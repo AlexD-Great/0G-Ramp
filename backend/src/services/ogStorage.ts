@@ -1,19 +1,4 @@
-/**
- * ogStorage.ts – 0G Storage service
- *
- * Uses @0glabs/0g-ts-sdk to upload/download immutable blobs on the
- * 0G decentralized storage network (Newton Testnet).
- *
- * SDK notes (v0.3.x):
- *   - `MemData(buffer)` wraps in-memory bytes into an uploadable file abstraction
- *   - `Indexer.upload(file, rpc, signer, opts)` → returns [{txHash, rootHash}, error]
- *   - `Indexer.download(rootHash, filePath, proof)` → downloads to disk
- *   - Flow contract anchors the Merkle root on-chain
- *
- * Testnet:
- *   Indexer RPC: https://indexer-storage-testnet-standard.0g.ai
- *   Flow contract: 0xbD2C3F0E65eDF5582141C35969d66e205f5cc79
- */
+
 
 import { Indexer, MemData, getFlowContract, defaultUploadOption } from '@0glabs/0g-ts-sdk';
 import * as crypto from 'crypto';

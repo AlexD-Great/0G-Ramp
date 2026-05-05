@@ -1,122 +1,94 @@
 /**
- * /api/kyc – KYC submission and verification
+ * /api/kyc — Stripe Identity-backed verification.
  *
- * POST /submit    – upload KYC document blob → 0G Storage + 0G Compute verify
- * GET  /status/:userId – poll KYC verification status
+ * POST /start  (auth required)
+ *   → creates a Stripe Identity VerificationSession scoped to the user's
+ *     wallet address (carried in metadata) and returns the hosted URL the
+ *     frontend redirects to.
+ *
+ * GET /me      (auth required)
+ *   → reads kycStatus from Firestore. The status is updated by the Stripe
+ *     webhook (handled in routes/payments.ts), so this is just a read.
+ *
+ * The Stripe webhook receives:
+ *   identity.verification_session.processing       → kycStatus='verifying'
+ *   identity.verification_session.verified         → kycStatus='verified'
+ *   identity.verification_session.requires_input   → kycStatus='rejected'
+ *   identity.verification_session.canceled         → kycStatus='none'
  */
 
 import { Router, Request, Response } from 'express';
-import { z } from 'zod';
-import * as crypto from 'crypto';
-import { validateBody } from '../middleware/auth';
-import { ogStorage } from '../services/ogStorage';
-import { ogCompute } from '../services/ogCompute';
-import { KYCRecord } from '../types';
+import Stripe from 'stripe';
+import { config } from '../config';
+import { requireAuth } from '../middleware/firebaseAuth';
+import { getUser, patchUser, type KycStatusValue } from '../services/firebase';
 
 const router = Router();
 
-// In-memory KYC store – replace with encrypted DB in production
-const kycStore = new Map<string, KYCRecord>();
+const stripe = config.stripe.secretKey ? new Stripe(config.stripe.secretKey) : null;
 
-// ─── Schema ──────────────────────────────────────────────────────────────────
-
-const SubmitKycSchema = z.object({
-  userId: z.string().min(1),
-  userAddress: z.string().min(10),
-  documentType: z.enum(['passport', 'national_id', 'drivers_license']),
-  // Base64-encoded document bytes (encrypted client-side before sending)
-  documentBase64: z.string().min(1),
-  fullName: z.string().min(2),
-});
-
-// ─── Routes ──────────────────────────────────────────────────────────────────
-
-// POST /api/kyc/submit
-router.post('/submit', validateBody(SubmitKycSchema), async (req: Request, res: Response) => {
-  const body = req.body as z.infer<typeof SubmitKycSchema>;
-
-  // Decode document bytes
-  let docBytes: Buffer;
-  try {
-    docBytes = Buffer.from(body.documentBase64, 'base64');
-  } catch {
-    res.status(400).json({ error: 'Invalid base64 document' });
+router.post('/start', requireAuth, async (req: Request, res: Response) => {
+  if (!stripe) {
+    res.status(503).json({ error: 'Stripe not configured. Set STRIPE_SECRET_KEY.' });
     return;
   }
+  const walletAddress = req.user!.walletAddress;
 
-  const documentHash = crypto.createHash('sha256').update(docBytes).digest('hex');
-
-  // 1. Upload to 0G Storage (immutable, permanent)
-  let storageResult;
   try {
-    storageResult = await ogStorage.storeKyc(body.userId, body.userAddress, docBytes);
-  } catch (err) {
-    res.status(502).json({ error: '0G Storage upload failed', detail: String(err) });
-    return;
-  }
+    const session = await stripe.identity.verificationSessions.create({
+      type: 'document',
+      metadata: { walletAddress },
+      options: {
+        document: {
+          allowed_types: ['driving_license', 'passport', 'id_card'],
+          require_matching_selfie: true,
+          require_live_capture: true,
+        },
+      },
+      return_url: `${config.server.frontendOrigin}/kyc?status=complete`,
+    });
 
-  // 2. Submit 0G Compute verification job
-  let computeJob;
-  try {
-    computeJob = await ogCompute.submitKycVerification({
-      userId: body.userId,
-      documentSha256: documentHash,
-      storageRootHash: storageResult.rootHash,
-      documentType: body.documentType,
+    await patchUser(walletAddress, {
+      kycStatus: 'submitted',
+      kycSubmittedAt: Date.now(),
+      kycStripeSessionId: session.id,
+      kycRejectReason: undefined,
+    });
+
+    res.json({
+      ok: true,
+      url: session.url,
+      sessionId: session.id,
     });
   } catch (err) {
-    console.warn('[KYC] Compute job submission failed (non-fatal):', err);
-    computeJob = { jobId: 'unavailable', status: 'failed' as const };
+    console.error('[KYC] Failed to create Stripe Identity session:', err);
+    res.status(502).json({ error: 'Failed to create verification session', detail: String(err) });
   }
-
-  // 3. Persist KYC record
-  const record: KYCRecord = {
-    userId: body.userId,
-    userAddress: body.userAddress,
-    fullName: body.fullName,
-    documentHash,
-    storageRootHash: storageResult.rootHash,
-    verifiedAt: 0,                    // set when compute job completes
-    computeJobId: computeJob.jobId,
-  };
-  kycStore.set(body.userId, record);
-
-  res.status(202).json({
-    ok: true,
-    userId: body.userId,
-    documentHash,
-    storageRootHash: storageResult.rootHash,
-    computeJobId: computeJob.jobId,
-    message: 'KYC submitted. Poll /api/kyc/status/:userId for result.',
-  });
 });
 
-// GET /api/kyc/status/:userId
-router.get('/status/:userId', (req: Request, res: Response) => {
-  const record = kycStore.get(req.params.userId);
-  if (!record) {
-    res.status(404).json({ error: 'KYC record not found' });
+router.get('/me', requireAuth, async (req: Request, res: Response) => {
+  const walletAddress = req.user!.walletAddress;
+  const user = await getUser(walletAddress);
+  if (!user) {
+    res.json({
+      walletAddress,
+      kycStatus: 'none' as KycStatusValue,
+      kycSubmittedAt: null,
+      kycVerifiedAt: null,
+      kycStripeSessionId: null,
+      kycRejectReason: null,
+      fullName: null,
+    });
     return;
   }
-
-  const computeResult = ogCompute.getJobResult(record.computeJobId);
-
-  // If compute just finished, stamp the verification time
-  if (computeResult?.status === 'completed' && record.verifiedAt === 0) {
-    record.verifiedAt = Date.now();
-    kycStore.set(req.params.userId, record);
-  }
-
   res.json({
-    userId: record.userId,
-    userAddress: record.userAddress,
-    documentHash: record.documentHash,
-    storageRootHash: record.storageRootHash,
-    computeJobId: record.computeJobId,
-    computeStatus: computeResult?.status ?? 'unknown',
-    computeResult: computeResult?.result ?? null,
-    verified: record.verifiedAt > 0,
-    verifiedAt: record.verifiedAt || null,
+    walletAddress,
+    kycStatus: user.kycStatus,
+    kycSubmittedAt: user.kycSubmittedAt ?? null,
+    kycVerifiedAt: user.kycVerifiedAt ?? null,
+    kycStripeSessionId: user.kycStripeSessionId ?? null,
+    kycRejectReason: user.kycRejectReason ?? null,
+    fullName: user.fullName ?? null,
   });
 });
 

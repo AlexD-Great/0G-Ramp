@@ -11,6 +11,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { validateBody, internalOnly } from '../middleware/auth';
+import { requireAuth } from '../middleware/firebaseAuth';
 import { ogCompute } from '../services/ogCompute';
 import { ogStorage } from '../services/ogStorage';
 import { wallet } from '../services/wallet';
@@ -80,6 +81,16 @@ router.post('/initiate', validateBody(InitiateSchema), async (req: Request, res:
   res.status(201).json({ ok: true, transaction: tx });
 });
 
+// GET /api/transactions/mine  (auth required) – ramp txs for the calling user
+// MUST be declared before /:id, otherwise Express matches "mine" as the id param.
+router.get('/mine', requireAuth, (req: Request, res: Response) => {
+  const addr = req.user!.walletAddress;
+  const all = Array.from(txStore.values())
+    .filter((t: RampTransaction) => t.userAddress.toLowerCase() === addr)
+    .sort((a: RampTransaction, b: RampTransaction) => b.createdAt - a.createdAt);
+  res.json({ transactions: all, count: all.length });
+});
+
 // GET /api/transactions/:id
 router.get('/:id', (req: Request, res: Response) => {
   const tx = txStore.get(req.params.id);
@@ -147,7 +158,7 @@ router.post('/payout', internalOnly, validateBody(PayoutSchema), async (req: Req
   }
 });
 
-// GET /api/transactions  (list all – dev only)
+// GET /api/transactions  (list all – dev only, kept for /node ledger view)
 router.get('/', (_req: Request, res: Response) => {
   const all = Array.from(txStore.values()).sort((a: RampTransaction, b: RampTransaction) => b.createdAt - a.createdAt);
   res.json({ transactions: all, count: all.length });

@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, type ChainStatus } from '../lib/api';
-import WalletButton from './WalletButton';
+import SignInButton from './SignInButton';
 
 export default function TopNav({ brand = 'ORBIT', active = 'BRIDGE', onSidebarToggle }: { brand?: string; active?: string; onSidebarToggle?: () => void }) {
   const [status, setStatus] = useState<ChainStatus | null>(null);
@@ -72,7 +72,7 @@ export default function TopNav({ brand = 'ORBIT', active = 'BRIDGE', onSidebarTo
           <div className={`status-dot ${live ? 'active' : ''}`} style={!live ? { background: 'var(--on-surface-variant)' } : undefined}></div>
           {label}
         </div>
-        <WalletButton />
+        <SignInButton />
       </div>
     </div>
   );

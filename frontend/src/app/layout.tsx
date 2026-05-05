@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { AuthProvider } from '../lib/auth';
 
 export const metadata: Metadata = {
   title: '0G Ramp | Sovereign Orchestrator',
@@ -14,9 +15,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="app-container">
-          <main className="w-full flex-col flex">{children}</main>
-        </div>
+        <AuthProvider>
+          <div className="app-container">
+            <main className="w-full flex-col flex">{children}</main>
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );

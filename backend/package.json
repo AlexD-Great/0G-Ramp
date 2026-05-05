@@ -10,15 +10,17 @@
     "watcher": "ts-node-dev --respawn --transpile-only src/services/bridgeWatcher.ts"
   },
   "dependencies": {
-    "@0glabs/0g-ts-sdk": "^0.3.1",
     "@0glabs/0g-serving-broker": "^0.7.4",
+    "@0glabs/0g-ts-sdk": "^0.3.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "ethers": "6.13.1",
     "express": "^4.19.2",
     "express-rate-limit": "^7.3.1",
+    "firebase-admin": "^13.8.0",
     "helmet": "^7.1.0",
     "morgan": "^1.10.0",
+    "stripe": "^22.1.0",
     "uuid": "^10.0.0",
     "zod": "^3.23.8"
   },

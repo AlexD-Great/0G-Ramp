@@ -310,7 +310,7 @@ Restarts are safe: the watcher resumes from the persisted block, txs survive, no
 
 ### 🟡 Scaffolded / not wired
 
-- **Stripe + Paystack payment gateway integration** — env vars and dead UI cards exist; no `/api/payments` routes, no webhook handlers
+- **Paystack payment gateway** — env vars present; not wired (Stripe is the live path)
 - **Off-ramp** — schema supports `destChain` but the fiat-out leg is unimplemented
 - **Verified contract on chainscan** — blocked by 0G's explorer not exposing a verify API
 

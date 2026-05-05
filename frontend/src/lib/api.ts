@@ -1,22 +1,45 @@
-const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4000';
-const FETCH_TIMEOUT_MS = 15000; // 15 second timeout
+import { getFirebaseAuth } from './firebase';
 
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
+const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4000';
+const FETCH_TIMEOUT_MS = 15000;
+
+async function authHeader(): Promise<Record<string, string>> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const u = getFirebaseAuth().currentUser;
+    if (!u) return {};
+    const token = await u.getIdToken();
+    return { Authorization: `Bearer ${token}` };
+  } catch {
+    return {};
+  }
+}
+
+async function req<T>(path: string, init?: RequestInit & { auth?: boolean }): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  
+
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...((init?.headers as Record<string, string>) ?? {}),
+    };
+    if (init?.auth) Object.assign(headers, await authHeader());
+
     const res = await fetch(`${BASE}${path}`, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      headers,
       cache: 'no-store',
       signal: controller.signal,
     });
-    
+
     if (!res.ok) {
       let body: unknown;
       try { body = await res.json(); } catch { body = await res.text(); }
-      throw new Error(`${res.status} ${res.statusText}: ${JSON.stringify(body)}`);
+      const err = new Error(`${res.status} ${res.statusText}: ${JSON.stringify(body)}`) as Error & { status?: number; body?: unknown };
+      err.status = res.status;
+      err.body = body;
+      throw err;
     }
     return res.json() as Promise<T>;
   } catch (error) {
@@ -32,13 +55,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-export type Health = {
-  status: string;
-  service: string;
-  network: string;
-  chainId: number;
-  timestamp: number;
-};
+export type Health = { status: string; service: string; network: string; chainId: number; timestamp: number };
 
 export type ChainStatus = {
   ok: boolean;
@@ -83,44 +100,34 @@ export type InitiateInput = {
   destChain: string;
 };
 
-export type KycSubmitInput = {
-  userId: string;
-  userAddress: string;
-  documentType: 'passport' | 'national_id' | 'drivers_license';
-  documentBase64: string;
-  fullName: string;
-};
+export type KycStatusValue = 'none' | 'submitted' | 'verifying' | 'verified' | 'rejected';
 
-export type KycSubmitResponse = {
+export type StartKycResponse = {
   ok: boolean;
-  userId: string;
-  documentHash: string;
-  storageRootHash: string;
-  computeJobId: string;
-  message: string;
+  url: string;
+  sessionId: string;
 };
 
-export type KycStatus = {
-  userId: string;
-  userAddress: string;
-  documentHash: string;
-  storageRootHash: string;
-  computeJobId: string;
-  computeStatus: string;
-  computeResult: Record<string, unknown> | null;
-  verified: boolean;
-  verifiedAt: number | null;
+export type MyKycStatus = {
+  walletAddress: string;
+  kycStatus: KycStatusValue;
+  kycSubmittedAt: number | null;
+  kycVerifiedAt: number | null;
+  kycStripeSessionId: string | null;
+  kycRejectReason: string | null;
+  fullName: string | null;
 };
 
 export type Quote = { amountUsd: number; amount0G: string; rate: number };
 
-export type CheckoutResponse = {
+export type CheckoutSessionResponse = {
   ok: boolean;
-  paymentIntentId: string;
+  url: string;
+  sessionId: string;
+  txId: string;
   amountUsd: number;
   amount0G: string;
   rate: number;
-  transaction: RampTx;
 };
 
 export type Treasury = { contract: string; balance: string; unit: string };
@@ -133,27 +140,24 @@ export const api = {
     req<{ address: string; balance: string; unit: string }>(`/api/chain/balance/${address}`),
   computeBalance: () => req<ComputeBalance | { error: string }>('/api/compute/balance'),
   listTransactions: () => req<{ transactions: RampTx[]; count: number }>('/api/transactions'),
+  myTransactions: () => req<{ transactions: RampTx[]; count: number }>('/api/transactions/mine', { auth: true }),
   initiateTransaction: (input: InitiateInput) =>
     req<{ ok: boolean; transaction: RampTx }>('/api/transactions/initiate', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  submitKyc: (input: KycSubmitInput) =>
-    req<KycSubmitResponse>('/api/kyc/submit', {
+  startKyc: () =>
+    req<StartKycResponse>('/api/kyc/start', {
       method: 'POST',
-      body: JSON.stringify(input),
+      auth: true,
     }),
-  kycStatus: (userId: string) => req<KycStatus>(`/api/kyc/status/${userId}`),
+  myKyc: () => req<MyKycStatus>('/api/kyc/me', { auth: true }),
   quote: (amountUsd: number) => req<Quote>(`/api/payments/quote/${amountUsd}`),
-  checkout: (userAddress: string, amountUsd: number) =>
-    req<CheckoutResponse>('/api/payments/checkout', {
+  createCheckoutSession: (amountUsd: number) =>
+    req<CheckoutSessionResponse>('/api/payments/create-checkout-session', {
       method: 'POST',
-      body: JSON.stringify({ userAddress, amountUsd }),
-    }),
-  confirmPayment: (paymentIntentId: string) =>
-    req<{ ok: boolean; transaction: RampTx; message: string }>('/api/payments/confirm', {
-      method: 'POST',
-      body: JSON.stringify({ paymentIntentId }),
+      body: JSON.stringify({ amountUsd }),
+      auth: true,
     }),
   treasury: () => req<Treasury>('/api/payments/treasury'),
   getTransaction: (id: string) =>

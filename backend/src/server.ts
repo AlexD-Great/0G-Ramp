@@ -32,7 +32,8 @@ import transactionRoutes from './routes/transactions';
 import kycRoutes from './routes/kyc';
 import computeRoutes from './routes/compute';
 import storageRoutes from './routes/storage';
-import paymentsRoutes from './routes/payments';
+import paymentsRoutes, { stripeWebhookHandler } from './routes/payments';
+import authRoutes from './routes/auth';
 
 const app = express();
 
@@ -43,6 +44,11 @@ app.use(cors({
   credentials: true,
 }));
 app.use(morgan('dev'));
+
+// Stripe webhook needs the raw body for signature verification, so it must be
+// mounted BEFORE express.json() parses the body.
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+
 app.use(express.json({ limit: '10mb' })); // KYC documents can be large
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
@@ -73,6 +79,7 @@ app.use('/api/kyc', kycRoutes);
 app.use('/api/compute', computeRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/auth', authRoutes);
 
 // ─── Global error handler ─────────────────────────────────────────────────────
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

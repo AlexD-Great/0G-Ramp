@@ -1,23 +1,55 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import TopNav from '../../components/TopNav';
 import Sidebar from '../../components/Sidebar';
-import StripeCheckout from '../../components/StripeCheckout';
-import { api, type Quote, type RampTx, type Treasury } from '../../lib/api';
-import { useWallet, connectWallet } from '../../lib/wallet';
+import AuthGate from '../../components/AuthGate';
+import { api, type MyKycStatus, type Quote, type RampTx, type Treasury } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 
-const EXPLORER = 'https://chainscan-galileo.0g.ai';
-type Stage = 'idle' | 'checkout-open' | 'verifying' | 'paying-out' | 'anchoring' | 'settled' | 'failed';
+const EXPLORER = process.env.NEXT_PUBLIC_EXPLORER_URL ?? 'https://chainscan-galileo.0g.ai';
+type Stage = 'idle' | 'redirecting' | 'verifying' | 'paying-out' | 'anchoring' | 'settled' | 'failed' | 'cancelled';
 
 export default function BuyPage() {
-  const wallet = useWallet();
+  return (
+    <>
+      <TopNav brand="OG RAMP CORE" active="BRIDGE" />
+      <div className="flex" style={{ height: 'calc(100vh - 72px)' }}>
+        <Sidebar />
+        <div className="page-content flex flex-col gap-8" style={{ padding: '2rem 3rem', maxWidth: '1100px', flex: 1, overflowY: 'auto' }}>
+          <AuthGate message="Sign in with your wallet to access the on-ramp.">
+            <Suspense fallback={null}>
+              <BuyPageInner />
+            </Suspense>
+          </AuthGate>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function BuyPageInner() {
+  const { walletAddress } = useAuth();
+  const search = useSearchParams();
+  const router = useRouter();
   const [amountUsd, setAmountUsd] = useState('5');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [treasury, setTreasury] = useState<Treasury | null>(null);
-  const [showCheckout, setShowCheckout] = useState(false);
   const [tx, setTx] = useState<RampTx | null>(null);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [kyc, setKyc] = useState<MyKycStatus | null>(null);
+
+  // Poll KYC status — required before checkout
+  useEffect(() => {
+    let alive = true;
+    const tick = () => api.myKyc().then((k) => { if (alive) setKyc(k); }).catch(() => {});
+    tick();
+    const id = setInterval(tick, 6000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
   // Fetch quote whenever USD amount changes
   useEffect(() => {
@@ -37,9 +69,26 @@ export default function BuyPage() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
+  // Resume from Stripe redirect (?txId=...&status=success|cancelled)
+  useEffect(() => {
+    const txId = search.get('txId');
+    const status = search.get('status');
+    if (!txId) return;
+    if (status === 'cancelled') {
+      setStage('cancelled');
+      api.getTransaction(txId).then(({ transaction }) => setTx(transaction)).catch(() => {});
+      return;
+    }
+    if (status === 'success') {
+      setStage('verifying');
+      api.getTransaction(txId).then(({ transaction }) => setTx(transaction)).catch(() => {});
+    }
+  }, [search]);
+
   // Poll the ramp tx once submitted
   useEffect(() => {
     if (!tx || tx.status === 'settled' || tx.status === 'failed') return;
+    if (stage === 'cancelled') return;
     let alive = true;
     const tick = async () => {
       try {
@@ -56,42 +105,24 @@ export default function BuyPage() {
     tick();
     const id = setInterval(tick, 2000);
     return () => { alive = false; clearInterval(id); };
-  }, [tx]);
+  }, [tx, stage]);
 
   const onBuyClick = async () => {
     setError(null);
-    if (!wallet) {
-      try { await connectWallet(); }
-      catch (e) { setError((e as Error).message); return; }
-      return;
-    }
-    setShowCheckout(true);
-  };
-
-  const onPay = async () => {
-    if (!wallet) throw new Error('Connect wallet first');
     const usd = parseFloat(amountUsd);
-    if (Number.isNaN(usd) || usd < 1) throw new Error('Amount must be at least $1');
-    
+    if (Number.isNaN(usd) || usd < 1) { setError('Amount must be at least $1'); return; }
+    if (kyc?.kycStatus !== 'verified') { setError('Complete KYC verification before purchasing.'); return; }
+
+    setBusy(true);
+    setStage('redirecting');
     try {
-      const checkout = await api.checkout(wallet, usd);
-      setTx(checkout.transaction);
-      setStage('verifying');
-      
-      // Keep modal open during confirmation
-      try {
-        await api.confirmPayment(checkout.paymentIntentId);
-      } catch (confirmErr) {
-        // Mark transaction as failed if confirmation fails
-        setTx(prev => prev ? { ...prev, status: 'failed' } : null);
-        setStage('failed');
-        throw confirmErr;
-      }
-      
-      // Only close modal after successful confirmation
-      setShowCheckout(false);
+      const { url } = await api.createCheckoutSession(usd);
+      if (!url) throw new Error('Stripe did not return a checkout URL');
+      window.location.href = url;
     } catch (err) {
-      throw err;
+      setError((err as Error).message);
+      setStage('idle');
+      setBusy(false);
     }
   };
 
@@ -110,119 +141,115 @@ export default function BuyPage() {
     setTx(null);
     setStage('idle');
     setError(null);
+    setBusy(false);
+    router.replace('/buy');
   };
 
   const treasuryLow = !!treasury && parseFloat(treasury.balance) < 0.05;
+  const verified = kyc?.kycStatus === 'verified';
+  const canSubmit = !!quote && !treasuryLow && !busy && verified;
 
   return (
     <>
-      <TopNav brand="OG RAMP CORE" active="BRIDGE" />
-      <div className="flex" style={{ height: 'calc(100vh - 72px)' }}>
-        <Sidebar />
-        <div className="page-content flex flex-col gap-8" style={{ padding: '2rem 3rem', maxWidth: '1100px' }}>
-
-          <div className="flex justify-between items-end">
-            <div>
-              <div className="label-sm text-gradient-purple mb-2">SOVEREIGN ON-RAMP</div>
-              <h1 className="display-md">BUY 0G TOKENS</h1>
-              <div className="label-sm mt-2">Pay USD via simulated Stripe → AI verifies → custodial payout → receipt anchored to 0G Storage.</div>
-            </div>
-            {treasury && (
-              <div className="orbit-card ghost-border" style={{ padding: '1rem', minWidth: '220px' }}>
-                <div className="label-sm mb-1">TREASURY POOL</div>
-                <div className="display-sm" style={{ color: treasuryLow ? '#ff6b6b' : 'var(--primary)' }}>{parseFloat(treasury.balance).toFixed(4)} 0G</div>
-                <div style={{ fontSize: '0.6rem', color: 'var(--on-surface-variant)', marginTop: '0.25rem', fontFamily: 'monospace' }}>
-                  {treasury.contract.slice(0, 10)}…{treasury.contract.slice(-6)}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {!tx ? (
-            <div className="orbit-card ghost-border" style={{ padding: '2.5rem', background: 'var(--surface-container-low)' }}>
-              <h2 className="label-md mb-6" style={{ letterSpacing: '0.15em' }}>ORDER</h2>
-
-              <div className="flex gap-4 items-end">
-                <div style={{ flex: 1 }}>
-                  <div className="label-sm mb-2">YOU PAY (USD)</div>
-                  <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-container-lowest)', border: '1px solid var(--outline-variant)', borderRadius: 'var(--rounded-sm)', padding: '0.5rem 1rem' }}>
-                    <span style={{ fontSize: '1.5rem', color: 'var(--on-surface-variant)', marginRight: '0.5rem' }}>$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="1"
-                      value={amountUsd}
-                      onChange={(e) => setAmountUsd(e.target.value)}
-                      style={{ flex: 1, fontSize: '1.5rem', background: 'transparent', border: 'none', outline: 'none', color: 'var(--on-surface)', fontFamily: 'monospace' }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ width: '32px', textAlign: 'center', fontSize: '1.5rem', color: 'var(--on-surface-variant)', paddingBottom: '0.75rem' }}>→</div>
-
-                <div style={{ flex: 1 }}>
-                  <div className="label-sm mb-2">YOU RECEIVE</div>
-                  <div style={{ background: 'var(--surface-container-lowest)', border: '1px solid var(--tertiary)', borderRadius: 'var(--rounded-sm)', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '1.5rem', color: 'var(--on-surface)', fontFamily: 'monospace' }}>{quote?.amount0G ?? '—'}</span>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--tertiary)', letterSpacing: '0.1em' }}>0G</span>
-                  </div>
-                </div>
-              </div>
-
-              {quote && (
-                <div className="flex justify-between mt-4" style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)' }}>
-                  <div>RATE: {quote.rate} USD / 0G</div>
-                  <div>VERIFICATION FEE: 0.5% applied at settlement</div>
-                </div>
-              )}
-
-              <div className="mt-8" style={{ borderTop: '1px solid var(--outline-variant)', paddingTop: '1.5rem' }}>
-                <div className="label-sm mb-2">DESTINATION WALLET</div>
-                <div className="orbit-card ghost-border" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: wallet ? 'var(--on-surface)' : 'var(--on-surface-variant)' }}>
-                    {wallet ?? 'Wallet not connected'}
-                  </div>
-                  {!wallet && (
-                    <button onClick={() => connectWallet().catch((e) => setError((e as Error).message))} className="btn btn-secondary" style={{ padding: '0.4rem 1rem', fontSize: '0.7rem' }}>CONNECT</button>
-                  )}
-                </div>
-              </div>
-
-              {treasuryLow && (
-                <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(255,107,107,0.1)', border: '1px solid #ff6b6b', borderRadius: 'var(--rounded-sm)', fontSize: '0.75rem', color: '#ff6b6b' }}>
-                  Treasury balance is low. Top up the OGRampPayout contract before initiating large purchases.
-                </div>
-              )}
-
-              <button
-                onClick={onBuyClick}
-                disabled={!quote || treasuryLow}
-                className="btn btn-primary w-full mt-6 display-sm"
-                style={{ padding: '1rem', letterSpacing: '0.3em', cursor: quote && !treasuryLow ? 'pointer' : 'not-allowed', opacity: quote && !treasuryLow ? 1 : 0.5 }}
-              >
-                {wallet ? 'PROCEED TO PAYMENT' : 'CONNECT WALLET TO CONTINUE'}
-              </button>
-
-              {error && (
-                <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,107,107,0.1)', border: '1px solid #ff6b6b', borderRadius: 'var(--rounded-sm)', fontSize: '0.75rem', color: '#ff6b6b', fontFamily: 'monospace' }}>
-                  {error}
-                </div>
-              )}
-            </div>
-          ) : (
-            <PipelineView tx={tx} stage={stage} onDownload={downloadReceipt} onReset={reset} />
-          )}
-
+      <div className="flex justify-between items-end">
+        <div>
+          <div className="label-sm text-gradient-purple mb-2">SOVEREIGN ON-RAMP</div>
+          <h1 className="display-md">BUY 0G TOKENS</h1>
+          <div className="label-sm mt-2">Pay USD via Stripe → AI verifies → custodial payout → receipt anchored to 0G Storage.</div>
         </div>
+        {treasury && (
+          <div className="orbit-card ghost-border" style={{ padding: '1rem', minWidth: '220px' }}>
+            <div className="label-sm mb-1">TREASURY POOL</div>
+            <div className="display-sm" style={{ color: treasuryLow ? '#ff6b6b' : 'var(--primary)' }}>{parseFloat(treasury.balance).toFixed(4)} 0G</div>
+            <div style={{ fontSize: '0.6rem', color: 'var(--on-surface-variant)', marginTop: '0.25rem', fontFamily: 'monospace' }}>
+              {treasury.contract.slice(0, 10)}…{treasury.contract.slice(-6)}
+            </div>
+          </div>
+        )}
       </div>
 
-      {showCheckout && quote && (
-        <StripeCheckout
-          amountUsd={parseFloat(amountUsd)}
-          amount0G={quote.amount0G}
-          onPay={onPay}
-          onClose={() => setShowCheckout(false)}
-        />
+      {!tx ? (
+        <div className="orbit-card ghost-border" style={{ padding: '2.5rem', background: 'var(--surface-container-low)' }}>
+          <h2 className="label-md mb-6" style={{ letterSpacing: '0.15em' }}>ORDER</h2>
+
+          {kyc && !verified && (
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255, 200, 100, 0.08)', border: '1px solid var(--tertiary)', borderRadius: 'var(--rounded-sm)' }}>
+              <div className="label-sm mb-1" style={{ color: 'var(--tertiary)' }}>KYC REQUIRED</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginBottom: '0.75rem' }}>
+                Complete identity verification before purchasing. Status: <strong>{kyc.kycStatus.toUpperCase()}</strong>.
+              </div>
+              <Link href="/kyc" className="btn btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.7rem', display: 'inline-block' }}>
+                {kyc.kycStatus === 'none' ? 'START KYC' : 'VIEW KYC'}
+              </Link>
+            </div>
+          )}
+
+          <div className="flex gap-4 items-end">
+            <div style={{ flex: 1 }}>
+              <div className="label-sm mb-2">YOU PAY (USD)</div>
+              <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-container-lowest)', border: '1px solid var(--outline-variant)', borderRadius: 'var(--rounded-sm)', padding: '0.5rem 1rem' }}>
+                <span style={{ fontSize: '1.5rem', color: 'var(--on-surface-variant)', marginRight: '0.5rem' }}>$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="1"
+                  value={amountUsd}
+                  onChange={(e) => setAmountUsd(e.target.value)}
+                  style={{ flex: 1, fontSize: '1.5rem', background: 'transparent', border: 'none', outline: 'none', color: 'var(--on-surface)', fontFamily: 'monospace' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ width: '32px', textAlign: 'center', fontSize: '1.5rem', color: 'var(--on-surface-variant)', paddingBottom: '0.75rem' }}>→</div>
+
+            <div style={{ flex: 1 }}>
+              <div className="label-sm mb-2">YOU RECEIVE</div>
+              <div style={{ background: 'var(--surface-container-lowest)', border: '1px solid var(--tertiary)', borderRadius: 'var(--rounded-sm)', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '1.5rem', color: 'var(--on-surface)', fontFamily: 'monospace' }}>{quote?.amount0G ?? '—'}</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--tertiary)', letterSpacing: '0.1em' }}>0G</span>
+              </div>
+            </div>
+          </div>
+
+          {quote && (
+            <div className="flex justify-between mt-4" style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)' }}>
+              <div>RATE: {quote.rate} USD / 0G</div>
+              <div>VERIFICATION FEE: 0.5% applied at settlement</div>
+            </div>
+          )}
+
+          <div className="mt-8" style={{ borderTop: '1px solid var(--outline-variant)', paddingTop: '1.5rem' }}>
+            <div className="label-sm mb-2">DESTINATION WALLET</div>
+            <div className="orbit-card ghost-border" style={{ padding: '1rem' }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '0.875rem', color: 'var(--on-surface)' }}>
+                {walletAddress}
+              </div>
+            </div>
+          </div>
+
+          {treasuryLow && (
+            <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(255,107,107,0.1)', border: '1px solid #ff6b6b', borderRadius: 'var(--rounded-sm)', fontSize: '0.75rem', color: '#ff6b6b' }}>
+              Treasury balance is low. Top up the OGRampPayout contract before initiating large purchases.
+            </div>
+          )}
+
+          <button
+            onClick={onBuyClick}
+            disabled={!canSubmit}
+            className="btn btn-primary w-full mt-6 display-sm"
+            style={{ padding: '1rem', letterSpacing: '0.3em', cursor: canSubmit ? 'pointer' : 'not-allowed', opacity: canSubmit ? 1 : 0.5 }}
+          >
+            {busy ? 'REDIRECTING TO STRIPE…' : !verified ? 'KYC REQUIRED' : 'PAY WITH STRIPE'}
+          </button>
+
+          {error && (
+            <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(255,107,107,0.1)', border: '1px solid #ff6b6b', borderRadius: 'var(--rounded-sm)', fontSize: '0.75rem', color: '#ff6b6b', fontFamily: 'monospace' }}>
+              {error}
+            </div>
+          )}
+        </div>
+      ) : (
+        <PipelineView tx={tx} stage={stage} onDownload={downloadReceipt} onReset={reset} />
       )}
     </>
   );
@@ -248,39 +275,41 @@ function PipelineView({ tx, stage, onDownload, onReset }: { tx: RampTx; stage: S
         </div>
         <div className="text-right">
           <div className="label-sm">STATUS</div>
-          <div className="display-sm" style={{ color: stage === 'settled' ? 'var(--primary)' : stage === 'failed' ? '#ff6b6b' : 'var(--tertiary)', textTransform: 'uppercase' }}>
+          <div className="display-sm" style={{ color: stage === 'settled' ? 'var(--primary)' : stage === 'failed' || stage === 'cancelled' ? '#ff6b6b' : 'var(--tertiary)', textTransform: 'uppercase' }}>
             {stage}
           </div>
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        {steps.map((s, i) => {
-          const done = i < currentIdx || stage === 'settled';
-          const active = i === currentIdx && stage !== 'settled' && stage !== 'failed';
-          const failed = stage === 'failed' && i === currentIdx;
-          const color = failed ? '#ff6b6b' : done ? 'var(--primary)' : active ? 'var(--tertiary)' : 'var(--on-surface-variant)';
-          return (
-            <div key={s.key} className="orbit-card ghost-border flex items-center gap-4" style={{ padding: '1rem', background: 'var(--surface-container-lowest)', opacity: done || active || failed ? 1 : 0.4 }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                {done && !failed ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--on-primary-fixed)" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                ) : active ? (
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--on-primary-fixed)', animation: 'pulse 1.2s ease-in-out infinite' }} />
-                ) : failed ? (
-                  <span style={{ color: 'var(--on-primary-fixed)', fontWeight: 700 }}>×</span>
-                ) : (
-                  <span style={{ color: 'var(--on-primary-fixed)', fontSize: '0.7rem' }}>{i + 1}</span>
-                )}
+      {stage !== 'cancelled' && (
+        <div className="flex flex-col gap-2">
+          {steps.map((s, i) => {
+            const done = i < currentIdx || stage === 'settled';
+            const active = i === currentIdx && stage !== 'settled' && stage !== 'failed';
+            const failed = stage === 'failed' && i === currentIdx;
+            const color = failed ? '#ff6b6b' : done ? 'var(--primary)' : active ? 'var(--tertiary)' : 'var(--on-surface-variant)';
+            return (
+              <div key={s.key} className="orbit-card ghost-border flex items-center gap-4" style={{ padding: '1rem', background: 'var(--surface-container-lowest)', opacity: done || active || failed ? 1 : 0.4 }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {done && !failed ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--on-primary-fixed)" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  ) : active ? (
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--on-primary-fixed)', animation: 'pulse 1.2s ease-in-out infinite' }} />
+                  ) : failed ? (
+                    <span style={{ color: 'var(--on-primary-fixed)', fontWeight: 700 }}>×</span>
+                  ) : (
+                    <span style={{ color: 'var(--on-primary-fixed)', fontSize: '0.7rem' }}>{i + 1}</span>
+                  )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div className="label-md" style={{ color }}>{s.label}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)' }}>{s.description}</div>
+                </div>
               </div>
-              <div style={{ flex: 1 }}>
-                <div className="label-md" style={{ color }}>{s.label}</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)' }}>{s.description}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {stage === 'settled' && (
         <div className="orbit-card mt-6" style={{ padding: '1.5rem', background: 'var(--surface)', border: '1px solid var(--primary)' }}>
@@ -314,6 +343,16 @@ function PipelineView({ tx, stage, onDownload, onReset }: { tx: RampTx; stage: S
             The pipeline blocked this transaction. Common causes: high AI risk score, treasury insufficient, or chain RPC error.
           </div>
           <button onClick={onReset} className="btn btn-secondary" style={{ width: '100%', padding: '0.75rem' }}>TRY AGAIN</button>
+        </div>
+      )}
+
+      {stage === 'cancelled' && (
+        <div className="orbit-card mt-6" style={{ padding: '1.5rem', background: 'var(--surface)', border: '1px solid #ff6b6b' }}>
+          <div className="label-sm mb-2" style={{ color: '#ff6b6b' }}>CHECKOUT CANCELLED</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)', marginBottom: '1rem' }}>
+            You closed the Stripe checkout before completing payment. No funds were captured.
+          </div>
+          <button onClick={onReset} className="btn btn-secondary" style={{ width: '100%', padding: '0.75rem' }}>START OVER</button>
         </div>
       )}
     </div>
