@@ -173,7 +173,7 @@ export default function Home() {
           </div>
 
           <div className="data-ribbon justify-between text-gradient" style={{ borderTop: '1px solid var(--outline-variant)' }}>
-             <div>@2024 OBSIDIAN ORBIT LTD</div>
+             <div>@2026 OBSIDIAN ORBIT LTD</div>
              <div className="flex gap-8">
                 <div>BUILD V2.0.4 STABLE</div>
                 <div style={{ color: 'var(--on-surface)' }}>SYS STATUS: STABLE</div>
