@@ -1,6 +1,6 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import TopNav from '../../components/TopNav';
 import Sidebar from '../../components/Sidebar';
 import AuthGate from '../../components/AuthGate';
@@ -34,6 +34,7 @@ export default function KycPage() {
 
 function KycInner() {
   const search = useSearchParams();
+  const router = useRouter();
   const [status, setStatus] = useState<MyKycStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +52,13 @@ function KycInner() {
     const id = setInterval(tick, returningFromStripe ? 2000 : 6000);
     return () => { alive = false; clearInterval(id); };
   }, [returningFromStripe]);
+
+  useEffect(() => {
+    if (status?.kycStatus === 'rejected') {
+      const t = setTimeout(() => router.push('/dashboard'), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [status?.kycStatus, router]);
 
   const onStart = async () => {
     setError(null);
@@ -118,7 +126,7 @@ function KycInner() {
           <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(255,107,107,0.1)', border: '1px solid #ff6b6b', borderRadius: 'var(--rounded-sm)' }}>
             <div className="label-sm mb-1" style={{ color: '#ff6b6b' }}>VERIFICATION FAILED</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--on-surface-variant)' }}>
-              {status?.kycRejectReason ? `Reason: ${status.kycRejectReason}` : 'Stripe could not verify your documents.'} Try again with a clearer image.
+              {status?.kycRejectReason ? `Reason: ${status.kycRejectReason}` : 'Stripe could not verify your documents.'} Returning you to the dashboard…
             </div>
           </div>
         )}

@@ -17,7 +17,14 @@ export default function WalletButton() {
     try {
       await connectWallet();
     } catch (e) {
-      setErr((e as Error).message);
+      const code = (e as { code?: number }).code;
+      if (code === 4001) {
+        setErr('Connection cancelled in wallet.');
+      } else if (code === -32002) {
+        setErr('Wallet already has a pending request. Open MetaMask to approve.');
+      } else {
+        setErr(`Connection failed: ${(e as Error).message || 'unknown error'}`);
+      }
     } finally {
       setBusy(false);
     }

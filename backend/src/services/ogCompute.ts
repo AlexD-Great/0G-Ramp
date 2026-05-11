@@ -131,28 +131,6 @@ class OgComputeService {
 
   // ─── Job submission ────────────────────────────────────────────────────────
 
-  async submitKycVerification(params: {
-    userId: string;
-    documentSha256: string;
-    storageRootHash: string;
-    documentType: string;
-  }): Promise<ComputeJobResult> {
-    const jobId = `kyc_${uuidv4()}`;
-    const job: ComputeJobResult = { jobId, status: 'running' };
-    jobStore.set(jobId, job);
-
-    this._runJob(jobId, [
-      'You are a compliance verification engine.',
-      `Document type: ${params.documentType}`,
-      `Document SHA-256: ${params.documentSha256}`,
-      `0G Storage root hash: ${params.storageRootHash}`,
-      'Task: Confirm document integrity. Return ONLY a JSON object:',
-      '{"verified": boolean, "confidence": number, "flags": string[]}',
-    ].join(' ')).catch(console.error);
-
-    return job;
-  }
-
   async submitRiskScore(params: {
     txId: string;
     userAddress: string;

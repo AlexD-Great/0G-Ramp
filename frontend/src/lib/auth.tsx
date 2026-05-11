@@ -7,6 +7,18 @@ import { connectWallet } from './wallet';
 
 const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:4000';
 
+async function friendlyHttpError(res: Response, fallback: string): Promise<string> {
+  const body = await res.text().catch(() => '');
+  let detail = body;
+  try {
+    const parsed = JSON.parse(body) as { error?: string; message?: string; detail?: string };
+    detail = parsed.error ?? parsed.message ?? parsed.detail ?? '';
+  } catch { /* not JSON, keep raw text */ }
+  if (res.status >= 500) return `${fallback}: server unavailable. Please try again.`;
+  if (res.status === 401 || res.status === 403) return `${fallback}: ${detail || 'unauthorized'}.`;
+  return detail ? `${fallback}: ${detail}` : `${fallback}.`;
+}
+
 export type AuthState = {
   user: User | null;
   walletAddress: string | null;
@@ -58,15 +70,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSigningIn(true);
     try {
       // 1. Make sure we have a wallet connection
-      const walletAddress = await connectWallet();
+      let walletAddress: string;
+      try {
+        walletAddress = await connectWallet();
+      } catch (e) {
+        const code = (e as { code?: number }).code;
+        if (code === 4001) throw new Error('Connection cancelled in wallet.');
+        throw new Error(`Wallet connection failed: ${(e as Error).message ?? 'unknown error'}`);
+      }
 
       // 2. Ask backend for a fresh nonce + the message to sign
-      const nonceRes = await fetch(`${BASE}/api/auth/nonce`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress }),
-      });
-      if (!nonceRes.ok) throw new Error(`Nonce request failed: ${nonceRes.status} ${await nonceRes.text()}`);
+      let nonceRes: Response;
+      try {
+        nonceRes = await fetch(`${BASE}/api/auth/nonce`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ walletAddress }),
+        });
+      } catch {
+        throw new Error('Connection failed: could not reach OG Ramp server.');
+      }
+      if (!nonceRes.ok) throw new Error(await friendlyHttpError(nonceRes, 'Could not start sign-in'));
       const { message } = (await nonceRes.json()) as { nonce: string; message: string };
 
       // 3. Ask the wallet to sign the message
@@ -75,15 +99,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const provider = new BrowserProvider(window.ethereum as unknown as ConstructorParameters<typeof BrowserProvider>[0]);
       const signer = await provider.getSigner();
-      const signature = await signer.signMessage(message);
+      let signature: string;
+      try {
+        signature = await signer.signMessage(message);
+      } catch (e) {
+        const code = (e as { code?: number }).code;
+        if (code === 4001 || code === 'ACTION_REJECTED' as unknown as number) {
+          throw new Error('Signature rejected in wallet.');
+        }
+        throw new Error(`Signature failed: ${(e as Error).message ?? 'unknown error'}`);
+      }
 
       // 4. Exchange the signature for a Firebase custom token
-      const verifyRes = await fetch(`${BASE}/api/auth/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress, signature }),
-      });
-      if (!verifyRes.ok) throw new Error(`Sign-in failed: ${verifyRes.status} ${await verifyRes.text()}`);
+      let verifyRes: Response;
+      try {
+        verifyRes = await fetch(`${BASE}/api/auth/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ walletAddress, signature }),
+        });
+      } catch {
+        throw new Error('Connection failed: could not reach OG Ramp server.');
+      }
+      if (!verifyRes.ok) throw new Error(await friendlyHttpError(verifyRes, 'Sign-in failed'));
       const { customToken } = (await verifyRes.json()) as { customToken: string };
 
       // 5. Sign into Firebase Auth
