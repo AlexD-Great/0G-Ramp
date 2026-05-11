@@ -1,8 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api, type ChainStatus, type WalletStatus, type ComputeBalance } from '../lib/api';
+import { api, type ChainStatus, type ComputeBalance } from '../lib/api';
 
-type WalletResp = WalletStatus | { error: string };
 type ComputeResp = ComputeBalance | { error: string };
 
 function isErr(x: unknown): x is { error: string } {
@@ -11,22 +10,19 @@ function isErr(x: unknown): x is { error: string } {
 
 export default function SystemStatus() {
   const [chain, setChain] = useState<ChainStatus | null>(null);
-  const [walletState, setWalletState] = useState<WalletResp | null>(null);
   const [compute, setCompute] = useState<ComputeResp | null>(null);
   const [txCount, setTxCount] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
     const tick = async () => {
-      const [c, w, k, t] = await Promise.allSettled([
+      const [c, k, t] = await Promise.allSettled([
         api.chainStatus(),
-        api.walletStatus(),
         api.computeBalance(),
         api.listTransactions(),
       ]);
       if (!alive) return;
       if (c.status === 'fulfilled') setChain(c.value);
-      if (w.status === 'fulfilled') setWalletState(w.value);
       if (k.status === 'fulfilled') setCompute(k.value);
       if (t.status === 'fulfilled') setTxCount(t.value.count);
     };
@@ -35,27 +31,13 @@ export default function SystemStatus() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  const walletReady = walletState && !isErr(walletState);
   const computeReady = compute && !isErr(compute);
-  const storageReady = walletReady; // storage SDK only needs a signer
 
   return (
     <div className="orbit-card mb-8" style={{ padding: '1.5rem', background: 'var(--surface-container-low)' }}>
       <div className="label-md mb-4" style={{ letterSpacing: '0.1em' }}>SDK READINESS</div>
       <div className="flex gap-4">
         <Cell label="0G CHAIN" ok={!!chain} value={chain ? `BLOCK ${chain.blockNumber.toLocaleString()}` : '—'} sub={chain ? `chain ${chain.chainId}` : 'connecting'} />
-        <Cell
-          label="HOT WALLET"
-          ok={!!walletReady}
-          value={walletReady ? `${(walletState as WalletStatus).nativeBalance.slice(0, 8)} 0G` : 'NO KEY'}
-          sub={walletReady ? `${(walletState as WalletStatus).address.slice(0, 8)}…${(walletState as WalletStatus).address.slice(-4)}` : 'set OG_HOT_WALLET_PRIVATE_KEY'}
-        />
-        <Cell
-          label="STORAGE SDK"
-          ok={!!storageReady}
-          value={storageReady ? 'READY' : 'GATED'}
-          sub={storageReady ? 'signer attached' : 'needs hot wallet'}
-        />
         <Cell
           label="COMPUTE LEDGER"
           ok={!!computeReady && parseFloat((compute as ComputeBalance).balance) > 0}

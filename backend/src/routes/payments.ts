@@ -146,6 +146,56 @@ router.post('/create-checkout-session', requireAuth, validateBody(CheckoutSchema
   }
 });
 
+// ─── Finalize (redirect-based fallback when webhook didn't fire) ─────────────
+// Local dev and constrained networks often can't receive Stripe webhooks. The
+// success page calls this with the Stripe session_id; we verify payment with
+// Stripe directly and kick off the same on-ramp pipeline. Idempotent — if the
+// webhook already moved the tx out of `pending`, this is a no-op.
+
+const FinalizeSchema = z.object({
+  sessionId: z.string().min(1),
+  txId: z.string().min(1),
+});
+
+router.post('/finalize', requireAuth, validateBody(FinalizeSchema), async (req: Request, res: Response) => {
+  const s = requireStripe(res);
+  if (!s) return;
+
+  const { sessionId, txId } = req.body as z.infer<typeof FinalizeSchema>;
+  const tx = txStore.get(txId);
+  if (!tx || tx.userAddress.toLowerCase() !== req.user!.walletAddress) {
+    res.status(404).json({ error: 'Transaction not found' });
+    return;
+  }
+
+  let session: Awaited<ReturnType<typeof s.checkout.sessions.retrieve>>;
+  try {
+    session = await s.checkout.sessions.retrieve(sessionId);
+  } catch (err) {
+    res.status(502).json({ error: 'Failed to retrieve Stripe session', detail: errorDetail(err) });
+    return;
+  }
+
+  if (session.metadata?.txId !== txId) {
+    res.status(400).json({ error: 'Session does not match transaction' });
+    return;
+  }
+  if (session.payment_status !== 'paid') {
+    res.status(409).json({ error: 'Payment not completed', paymentStatus: session.payment_status });
+    return;
+  }
+
+  if (tx.status !== 'settled' && tx.status !== 'failed') {
+    runOnRampPipeline(tx).catch((err) => {
+      console.error(`[Payments] Finalize pipeline failed for ${tx.id}:`, err);
+      const cur = txStore.get(tx.id);
+      if (cur) txStore.set(tx.id, { ...cur, status: 'failed', updatedAt: Date.now() });
+    });
+  }
+
+  res.json({ ok: true, transaction: txStore.get(txId) });
+});
+
 // ─── Webhook handler (mounted in server.ts with express.raw) ──────────────────
 
 export async function stripeWebhookHandler(req: Request, res: Response): Promise<void> {
@@ -233,7 +283,7 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
       res.json({ received: true, ignored: 'unknown tx' });
       return;
     }
-    if (tx.status !== 'pending') {
+    if (tx.status === 'settled' || tx.status === 'failed') {
       res.json({ received: true, ignored: 'already processed' });
       return;
     }
@@ -252,79 +302,110 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
 
 // ─── Pipeline ────────────────────────────────────────────────────────────────
 
-async function runOnRampPipeline(tx: RampTransaction): Promise<void> {
-  console.log(`[Payments] Starting on-ramp pipeline for ${tx.id} – ${tx.amountIn} USD → ${tx.amountOut} 0G`);
+// Per-tx in-flight guard so the webhook + finalize can't race and double-pay.
+// Process-local; the resume logic below skips any step the persisted tx has
+// already recorded, so a process restart still recovers correctly.
+const inFlight = new Set<string>();
 
-  txStore.set(tx.id, { ...tx, status: 'verifying', updatedAt: Date.now() });
-
-  let computeJobId: string | undefined;
-  try {
-    const job = await ogCompute.submitRiskScore({
-      txId: tx.id,
-      userAddress: tx.userAddress,
-      amountUsd: parseFloat(tx.amountIn),
-      sourceChain: tx.sourceChain,
-      destChain: tx.destChain,
-    });
-    computeJobId = job.jobId;
-    txStore.set(tx.id, { ...txStore.get(tx.id)!, computeJobId });
-    console.log(`[Payments] Compute risk job: ${computeJobId}`);
-  } catch (err) {
-    console.warn(`[Payments] Compute job submission failed (non-fatal):`, err);
-  }
-
-  const risk = await awaitRiskResult(computeJobId);
-  if (isHighRisk(risk)) {
-    console.warn(`[Payments] BLOCKED tx ${tx.id} – AI flagged high-risk:`, risk);
-    txStore.set(tx.id, { ...txStore.get(tx.id)!, status: 'failed', updatedAt: Date.now() });
+async function runOnRampPipeline(initialTx: RampTransaction): Promise<void> {
+  if (inFlight.has(initialTx.id)) {
+    console.log(`[Payments] Pipeline for ${initialTx.id} already in-flight, skipping duplicate trigger`);
     return;
   }
-
-  const grossOg = tx.amountOut;
-  const { net, fee } = wallet.computeFee(grossOg);
-
-  let payoutTxHash: string | undefined;
+  inFlight.add(initialTx.id);
   try {
-    const result = await payoutService.sendPayout(tx.userAddress, net, tx.id);
-    payoutTxHash = result.txHash;
-    console.log(`[Payments] Payout settled on-chain: ${result.txHash} (${net} 0G → ${result.to})`);
-  } catch (err) {
-    console.error(`[Payments] Payout reverted:`, err);
-    txStore.set(tx.id, { ...txStore.get(tx.id)!, status: 'failed', updatedAt: Date.now() });
-    return;
-  }
+    // Always re-read from the store so we resume from the latest persisted state.
+    let tx = txStore.get(initialTx.id) ?? initialTx;
+    console.log(`[Payments] Pipeline ${tx.id} – ${tx.amountIn} USD → ${tx.amountOut} 0G (status=${tx.status})`);
 
-  let storageRootHash: string | undefined;
-  try {
-    const result = await ogStorage.storeReceipt({
-      txId: tx.id,
-      userAddress: tx.userAddress,
-      asset: tx.assetSymbol,
-      amountIn: tx.amountIn,
+    if (tx.status !== 'verifying') {
+      tx = { ...tx, status: 'verifying', updatedAt: Date.now() };
+      txStore.set(tx.id, tx);
+    }
+
+    // Step 1: risk score (skip if already submitted)
+    let computeJobId = tx.computeJobId;
+    if (!computeJobId) {
+      try {
+        const job = await ogCompute.submitRiskScore({
+          txId: tx.id,
+          userAddress: tx.userAddress,
+          amountUsd: parseFloat(tx.amountIn),
+          sourceChain: tx.sourceChain,
+          destChain: tx.destChain,
+        });
+        computeJobId = job.jobId;
+        txStore.set(tx.id, { ...txStore.get(tx.id)!, computeJobId });
+        console.log(`[Payments] Compute risk job: ${computeJobId}`);
+      } catch (err) {
+        console.warn(`[Payments] Compute job submission failed (non-fatal):`, err);
+      }
+    }
+
+    const risk = await awaitRiskResult(computeJobId);
+    if (isHighRisk(risk)) {
+      console.warn(`[Payments] BLOCKED tx ${tx.id} – AI flagged high-risk:`, risk);
+      txStore.set(tx.id, { ...txStore.get(tx.id)!, status: 'failed', updatedAt: Date.now() });
+      return;
+    }
+
+    // Step 2: payout (skip if we already have a settlement tx hash)
+    let payoutTxHash = tx.txHash0G;
+    let net = tx.amountOut;
+    let fee = tx.feeAmount;
+    if (!payoutTxHash) {
+      const computed = wallet.computeFee(tx.amountOut);
+      net = computed.net;
+      fee = computed.fee;
+      try {
+        const result = await payoutService.sendPayout(tx.userAddress, net, tx.id);
+        payoutTxHash = result.txHash;
+        console.log(`[Payments] Payout settled on-chain: ${result.txHash} (${net} 0G → ${result.to})`);
+        txStore.set(tx.id, { ...txStore.get(tx.id)!, amountOut: net, feeAmount: fee, txHash0G: payoutTxHash, updatedAt: Date.now() });
+      } catch (err) {
+        console.error(`[Payments] Payout reverted:`, err);
+        txStore.set(tx.id, { ...txStore.get(tx.id)!, status: 'failed', updatedAt: Date.now() });
+        return;
+      }
+    }
+
+    // Step 3: storage anchor (skip if already anchored)
+    let storageRootHash = tx.storageRootHash;
+    if (!storageRootHash) {
+      try {
+        const result = await ogStorage.storeReceipt({
+          txId: tx.id,
+          userAddress: tx.userAddress,
+          asset: tx.assetSymbol,
+          amountIn: tx.amountIn,
+          amountOut: net,
+          feeAmount: fee,
+          sourceChain: tx.sourceChain,
+          destChain: tx.destChain,
+          settlementTxHash: payoutTxHash!,
+          settledAt: Date.now(),
+        });
+        storageRootHash = result.rootHash;
+        console.log(`[Payments] 0G Storage receipt anchored: ${storageRootHash}`);
+      } catch (err) {
+        console.warn(`[Payments] Storage anchor failed (non-fatal):`, err);
+      }
+    }
+
+    const cur = txStore.get(tx.id)!;
+    txStore.set(tx.id, {
+      ...cur,
       amountOut: net,
       feeAmount: fee,
-      sourceChain: tx.sourceChain,
-      destChain: tx.destChain,
-      settlementTxHash: payoutTxHash!,
-      settledAt: Date.now(),
+      txHash0G: payoutTxHash,
+      storageRootHash,
+      status: 'settled',
+      updatedAt: Date.now(),
     });
-    storageRootHash = result.rootHash;
-    console.log(`[Payments] 0G Storage receipt anchored: ${storageRootHash}`);
-  } catch (err) {
-    console.warn(`[Payments] Storage anchor failed (non-fatal):`, err);
+    console.log(`[Payments] Ramp tx ${tx.id} → settled (${net} 0G to user, fee ${fee})`);
+  } finally {
+    inFlight.delete(initialTx.id);
   }
-
-  const cur = txStore.get(tx.id)!;
-  txStore.set(tx.id, {
-    ...cur,
-    amountOut: net,
-    feeAmount: fee,
-    txHash0G: payoutTxHash,
-    storageRootHash,
-    status: 'settled',
-    updatedAt: Date.now(),
-  });
-  console.log(`[Payments] Ramp tx ${tx.id} → settled (${net} 0G to user, fee ${fee})`);
 }
 
 const RISK_WAIT_MS = 5000;

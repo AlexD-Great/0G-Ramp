@@ -73,19 +73,57 @@ function BuyPageInner() {
   useEffect(() => {
     const txId = search.get('txId');
     const status = search.get('status');
+    const sessionId = search.get('session_id');
     if (!txId) return;
     if (status === 'cancelled') {
       setStage('cancelled');
+      // Render the pipeline view immediately with a placeholder so the user
+      // sees the cancellation card even if the GET below fails.
+      setTx({ id: txId, userAddress: '', assetSymbol: '0G', amountIn: '0', amountOut: '0', feeAmount: '0', sourceChain: 'STRIPE-USD', destChain: '0G-Galileo', status: 'cancelled', createdAt: Date.now(), updatedAt: Date.now() });
       api.getTransaction(txId).then(({ transaction }) => setTx(transaction)).catch(() => {});
       return;
     }
     if (status === 'success') {
       setStage('verifying');
-      api.getTransaction(txId).then(({ transaction }) => setTx(transaction)).catch(() => {});
+      // Render the pipeline view immediately, even before the first fetch
+      // resolves, so the user sees progress instead of the buy form.
+      setTx((prev) => prev ?? { id: txId, userAddress: '', assetSymbol: '0G', amountIn: '—', amountOut: '—', feeAmount: '0', sourceChain: 'STRIPE-USD', destChain: '0G-Galileo', status: 'pending', createdAt: Date.now(), updatedAt: Date.now() });
+
+      // Webhook fallback: ask the backend to verify the Stripe session and
+      // kick off the pipeline if it hasn't already. Idempotent.
+      const onErr = (err: unknown) => setError((err as Error).message || 'Failed to load transaction');
+      if (sessionId) {
+        api.finalizeCheckout(sessionId, txId)
+          .then(({ transaction }) => setTx(transaction))
+          .catch((err) => {
+            // Fall back to plain fetch — finalize can fail if Stripe key isn't set
+            // server-side; the webhook may have already settled it.
+            api.getTransaction(txId).then(({ transaction }) => setTx(transaction)).catch(() => onErr(err));
+          });
+      } else {
+        api.getTransaction(txId).then(({ transaction }) => setTx(transaction)).catch(onErr);
+      }
     }
   }, [search]);
 
-  // Poll the ramp tx once submitted
+  // Keep `stage` in sync with whatever `tx` looks like. Runs on every setTx
+  // (search-effect placeholder, finalize response, getTransaction response,
+  // poll tick), so the UI reflects the real tx state regardless of who wrote
+  // it. Critical: if the tx is already settled when we first load it (webhook
+  // completed before the user returned, or pipeline ran faster than the poll
+  // interval), the polling effect below would early-return and stage would
+  // be stuck at 'verifying' forever without this.
+  useEffect(() => {
+    if (!tx) return;
+    if (stage === 'cancelled' || stage === 'redirecting' || stage === 'idle') return;
+    if (tx.status === 'settled') setStage('settled');
+    else if (tx.status === 'failed') setStage('failed');
+    else if (tx.txHash0G) setStage('anchoring');
+    else if (tx.computeJobId) setStage('paying-out');
+    else setStage('verifying');
+  }, [tx, stage]);
+
+  // Poll the ramp tx until it reaches a terminal state.
   useEffect(() => {
     if (!tx || tx.status === 'settled' || tx.status === 'failed') return;
     if (stage === 'cancelled') return;
@@ -95,11 +133,6 @@ function BuyPageInner() {
         const { transaction } = await api.getTransaction(tx.id);
         if (!alive) return;
         setTx(transaction);
-        if (transaction.status === 'settled') setStage('settled');
-        else if (transaction.status === 'failed') setStage('failed');
-        else if (transaction.txHash0G) setStage('anchoring');
-        else if (transaction.computeJobId) setStage('paying-out');
-        else setStage('verifying');
       } catch { /* ignore */ }
     };
     tick();
@@ -256,15 +289,50 @@ function BuyPageInner() {
 }
 
 function PipelineView({ tx, stage, onDownload, onReset }: { tx: RampTx; stage: Stage; onDownload: () => void; onReset: () => void }) {
-  const steps: { key: Stage; label: string; description: string }[] = [
-    { key: 'verifying', label: 'PAYMENT VERIFIED', description: 'Stripe payment captured · ramp tx created' },
-    { key: 'paying-out', label: '0G COMPUTE RISK SCAN', description: 'AI scoring tx for AML / fraud signals' },
-    { key: 'anchoring', label: 'ON-CHAIN PAYOUT', description: 'OGRampPayout contract sending 0G to your wallet' },
-    { key: 'settled', label: '0G STORAGE ANCHOR', description: 'Tamper-proof receipt anchored on 0G' },
+  const shortHash = (h?: string) => (h && h.length > 14 ? `${h.slice(0, 10)}…${h.slice(-6)}` : h ?? '');
+  const settled = tx.status === 'settled';
+  // Step done-state is derived from the actual tx fields, not from `stage`.
+  // PAYMENT VERIFIED is always done once we render this view (we only got here
+  // via Stripe success redirect or because the tx already exists).
+  const steps: { label: string; description: string; done: boolean; live: React.ReactNode }[] = [
+    {
+      label: 'PAYMENT VERIFIED',
+      description: 'Stripe payment captured · ramp tx created',
+      done: true,
+      live: <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--on-surface)' }}>tx {tx.id.slice(0, 8)}…</span>,
+    },
+    {
+      label: '0G COMPUTE RISK SCAN',
+      description: 'AI scoring tx for AML / fraud signals',
+      done: !!tx.computeJobId,
+      live: tx.computeJobId
+        ? <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--tertiary)' }}>job {tx.computeJobId}</span>
+        : <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--on-surface-variant)' }}>submitting risk job…</span>,
+    },
+    {
+      label: 'ON-CHAIN PAYOUT',
+      description: 'OGRampPayout contract sending 0G to your wallet',
+      done: !!tx.txHash0G,
+      live: tx.txHash0G
+        ? <a href={`${EXPLORER}/tx/${tx.txHash0G}`} target="_blank" rel="noreferrer" style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--tertiary)' }}>{shortHash(tx.txHash0G)} ↗</a>
+        : tx.computeJobId
+          ? <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--on-surface-variant)' }}>broadcasting payout…</span>
+          : null,
+    },
+    {
+      label: '0G STORAGE ANCHOR',
+      description: 'Tamper-proof receipt anchored on 0G',
+      done: !!tx.storageRootHash || settled,
+      live: tx.storageRootHash
+        ? <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--tertiary)' }}>root {shortHash(tx.storageRootHash)}</span>
+        : tx.txHash0G
+          ? <span style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--on-surface-variant)' }}>anchoring receipt…</span>
+          : null,
+    },
   ];
 
-  const order: Stage[] = ['verifying', 'paying-out', 'anchoring', 'settled'];
-  const currentIdx = order.indexOf(stage);
+  // First not-done step is "active" (in-progress). Everything before it is done.
+  const activeIdx = steps.findIndex((s) => !s.done);
 
   return (
     <div className="orbit-card ghost-border" style={{ padding: '2.5rem', background: 'var(--surface-container-low)' }}>
@@ -284,12 +352,12 @@ function PipelineView({ tx, stage, onDownload, onReset }: { tx: RampTx; stage: S
       {stage !== 'cancelled' && (
         <div className="flex flex-col gap-2">
           {steps.map((s, i) => {
-            const done = i < currentIdx || stage === 'settled';
-            const active = i === currentIdx && stage !== 'settled' && stage !== 'failed';
-            const failed = stage === 'failed' && i === currentIdx;
+            const done = s.done;
+            const active = !done && (activeIdx === -1 ? false : i === activeIdx) && stage !== 'failed';
+            const failed = stage === 'failed' && i === activeIdx;
             const color = failed ? '#ff6b6b' : done ? 'var(--primary)' : active ? 'var(--tertiary)' : 'var(--on-surface-variant)';
             return (
-              <div key={s.key} className="orbit-card ghost-border flex items-center gap-4" style={{ padding: '1rem', background: 'var(--surface-container-lowest)', opacity: done || active || failed ? 1 : 0.4 }}>
+              <div key={s.label} className="orbit-card ghost-border flex items-center gap-4" style={{ padding: '1rem', background: 'var(--surface-container-lowest)', opacity: done || active || failed ? 1 : 0.4 }}>
                 <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   {done && !failed ? (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--on-primary-fixed)" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -304,6 +372,7 @@ function PipelineView({ tx, stage, onDownload, onReset }: { tx: RampTx; stage: S
                 <div style={{ flex: 1 }}>
                   <div className="label-md" style={{ color }}>{s.label}</div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--on-surface-variant)' }}>{s.description}</div>
+                  {s.live && <div style={{ marginTop: '0.35rem' }}>{s.live}</div>}
                 </div>
               </div>
             );

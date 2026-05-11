@@ -13,5 +13,48 @@
     "updatedAt": 1778014118575,
     "computeJobId": "risk_678b5508-2f4e-47f4-9c85-319c422fb9f5",
     "txHash0G": "0x4289da3842e82ee31ec72c3d194efb316360d42176452cbb29dcbbb5705ab4c8"
+  },
+  "c0aed510-c274-4a1d-96ec-bac67eba99ca": {
+    "id": "c0aed510-c274-4a1d-96ec-bac67eba99ca",
+    "userAddress": "0x1755f7bfe23a3c17d77d8e78b78663d44321b3ee",
+    "assetSymbol": "0G",
+    "amountIn": "5",
+    "amountOut": "0.050000",
+    "feeAmount": "0",
+    "sourceChain": "STRIPE-USD",
+    "destChain": "0G-Galileo",
+    "status": "pending",
+    "createdAt": 1778541278839,
+    "updatedAt": 1778541278839
+  },
+  "64d5d904-2de5-4047-83ab-b74182515a98": {
+    "id": "64d5d904-2de5-4047-83ab-b74182515a98",
+    "userAddress": "0x1755f7bfe23a3c17d77d8e78b78663d44321b3ee",
+    "assetSymbol": "0G",
+    "amountIn": "5",
+    "amountOut": "0.049750",
+    "feeAmount": "0.000250",
+    "sourceChain": "STRIPE-USD",
+    "destChain": "0G-Galileo",
+    "status": "settled",
+    "createdAt": 1778541348228,
+    "updatedAt": 1778542170480,
+    "computeJobId": "risk_93658509-3a8e-453d-96f3-9f8a0fbcd463",
+    "txHash0G": "0x35d45606c10ee4287db9e05d80a287c890cc4ce16918e8edad3eac9919cba505"
+  },
+  "5571ae4a-d886-4be2-8a58-c197b26a1a6f": {
+    "id": "5571ae4a-d886-4be2-8a58-c197b26a1a6f",
+    "userAddress": "0x1755f7bfe23a3c17d77d8e78b78663d44321b3ee",
+    "assetSymbol": "0G",
+    "amountIn": "5",
+    "amountOut": "0.049750",
+    "feeAmount": "0.000250",
+    "sourceChain": "STRIPE-USD",
+    "destChain": "0G-Galileo",
+    "status": "settled",
+    "createdAt": 1778543270426,
+    "updatedAt": 1778543312267,
+    "computeJobId": "risk_4a0b498a-7e2f-4fec-b688-2934baa4e9e5",
+    "txHash0G": "0xf9b0052005fc55df9f8d4b1e132c3ff0bcc1a833d82b1cd165b1a1eaab612445"
   }
 }

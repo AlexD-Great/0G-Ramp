@@ -175,6 +175,12 @@ export const api = {
       auth: true,
     }),
   treasury: () => req<Treasury>('/api/payments/treasury'),
+  finalizeCheckout: (sessionId: string, txId: string) =>
+    req<{ ok: boolean; transaction: RampTx }>('/api/payments/finalize', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, txId }),
+      auth: true,
+    }),
   getTransaction: (id: string) =>
     req<{ transaction: RampTx; computeResult: { result?: Record<string, unknown> | { raw: string } } | null }>(
       `/api/transactions/${id}`,
