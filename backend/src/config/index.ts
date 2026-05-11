@@ -77,7 +77,9 @@ export const config = {
   },
 
   // ─── Security ─────────────────────────────────────────────────────────────
-  apiSecret: optional('API_SECRET', 'dev-secret'),
+  // Required: gates internalOnly routes (payout, storage upload/download,
+  // compute deposit). MUST be a high-entropy random string in every env.
+  apiSecret: required('API_SECRET'),
 
   // ─── Firebase (Auth + Firestore) ─────────────────────────────────────────
   // Either supply FIREBASE_SERVICE_ACCOUNT (full JSON, single line) OR the

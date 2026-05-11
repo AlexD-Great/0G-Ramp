@@ -10,7 +10,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { validateBody, internalOnly } from '../middleware/auth';
+import { validateBody, internalOnly, errorDetail } from '../middleware/auth';
 import { requireAuth } from '../middleware/firebaseAuth';
 import { ogCompute } from '../services/ogCompute';
 import { ogStorage } from '../services/ogStorage';
@@ -23,7 +23,6 @@ const router = Router();
 // ─── Schemas ──────────────────────────────────────────────────────────────────
 
 const InitiateSchema = z.object({
-  userAddress: z.string().min(10),
   assetSymbol: z.string().min(1),
   amountIn: z.string().min(1),
   sourceChain: z.string().min(1),
@@ -41,13 +40,14 @@ const PayoutSchema = z.object({
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 // POST /api/transactions/initiate
-router.post('/initiate', validateBody(InitiateSchema), async (req: Request, res: Response) => {
+router.post('/initiate', requireAuth, validateBody(InitiateSchema), async (req: Request, res: Response) => {
   const body = req.body as z.infer<typeof InitiateSchema>;
   const now = Date.now();
+  const userAddress = req.user!.walletAddress;
 
   const tx: RampTransaction = {
     id: uuidv4(),
-    userAddress: body.userAddress,
+    userAddress,
     assetSymbol: body.assetSymbol,
     amountIn: body.amountIn,
     amountOut: '0',
@@ -91,10 +91,11 @@ router.get('/mine', requireAuth, (req: Request, res: Response) => {
   res.json({ transactions: all, count: all.length });
 });
 
-// GET /api/transactions/:id
-router.get('/:id', (req: Request, res: Response) => {
+// GET /api/transactions/:id  (auth required, owner-only)
+router.get('/:id', requireAuth, (req: Request, res: Response) => {
   const tx = txStore.get(req.params.id);
-  if (!tx) {
+  if (!tx || tx.userAddress.toLowerCase() !== req.user!.walletAddress) {
+    // Same 404 for missing vs. unauthorized to avoid existence oracle.
     res.status(404).json({ error: 'Transaction not found' });
     return;
   }
@@ -154,13 +155,39 @@ router.post('/payout', internalOnly, validateBody(PayoutSchema), async (req: Req
     tx.status = 'failed';
     tx.updatedAt = Date.now();
     txStore.set(body.txId, tx);
-    res.status(500).json({ error: 'Payout failed', detail: String(err) });
+    console.error('[Transactions] Payout failed:', err);
+    res.status(500).json({ error: 'Payout failed', detail: errorDetail(err) });
   }
 });
 
-// GET /api/transactions  (list all – dev only, kept for /node ledger view)
+// GET /api/transactions  (public live-ledger feed — PII redacted)
+// Powers the homepage widgets and /node page. We deliberately strip:
+//   - full userAddress (truncated to first6…last4)
+//   - settlement tx hashes and compute job IDs (internal correlation IDs)
+// Only the most recent 50 are returned to keep the feed bounded.
+function redactForPublicLedger(t: RampTransaction): Record<string, unknown> {
+  const addr = t.userAddress;
+  const masked = addr.length >= 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '0x…';
+  return {
+    id: t.id,
+    userAddressMasked: masked,
+    assetSymbol: t.assetSymbol,
+    amountIn: t.amountIn,
+    amountOut: t.amountOut,
+    feeAmount: t.feeAmount,
+    sourceChain: t.sourceChain,
+    destChain: t.destChain,
+    status: t.status,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+  };
+}
+
 router.get('/', (_req: Request, res: Response) => {
-  const all = Array.from(txStore.values()).sort((a: RampTransaction, b: RampTransaction) => b.createdAt - a.createdAt);
+  const all = Array.from(txStore.values())
+    .sort((a: RampTransaction, b: RampTransaction) => b.createdAt - a.createdAt)
+    .slice(0, 50)
+    .map(redactForPublicLedger);
   res.json({ transactions: all, count: all.length });
 });
 

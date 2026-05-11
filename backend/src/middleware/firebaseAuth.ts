@@ -38,6 +38,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     req.user = { walletAddress: walletAddress.toLowerCase() };
     next();
   } catch (err) {
-    res.status(401).json({ error: 'Invalid or expired session token', detail: String(err) });
+    console.warn('[firebaseAuth] Token verification failed:', err);
+    res.status(401).json({ error: 'Invalid or expired session token' });
   }
 }

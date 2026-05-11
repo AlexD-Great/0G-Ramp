@@ -1,27 +1,30 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api, type RampTx } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 const EXPLORER = 'https://chainscan-galileo.0g.ai';
 
 export default function LatestReceipt() {
+  const { user } = useAuth();
   const [tx, setTx] = useState<RampTx | null>(null);
   const [allCount, setAllCount] = useState(0);
 
   useEffect(() => {
+    if (!user) { setTx(null); setAllCount(0); return; }
     let alive = true;
     const tick = async () => {
       try {
-        const { transactions, count } = await api.listTransactions();
+        const { transactions, count } = await api.myTransactions();
         if (!alive) return;
         setAllCount(count);
         setTx(transactions[0] ?? null);
-      } catch { /* offline */ }
+      } catch { /* offline or unauthorized */ }
     };
     tick();
     const id = setInterval(tick, 5000);
     return () => { alive = false; clearInterval(id); };
-  }, []);
+  }, [user]);
 
   const downloadReceipt = () => {
     if (!tx) return;
@@ -33,6 +36,17 @@ export default function LatestReceipt() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  if (!user) {
+    return (
+      <div className="orbit-card ghost-border flex" style={{ padding: '2.5rem', background: 'var(--surface-container-low)' }}>
+        <div style={{ flex: 1 }}>
+          <h2 className="display-md" style={{ color: 'var(--on-surface-variant)' }}>SIGN IN TO VIEW YOUR RECEIPT</h2>
+          <div className="label-sm mt-2">CONNECT YOUR WALLET TO SEE YOUR LATEST SETTLEMENT</div>
+        </div>
+      </div>
+    );
+  }
 
   if (!tx) {
     return (

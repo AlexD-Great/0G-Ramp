@@ -17,7 +17,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { ethers } from 'ethers';
 import { randomBytes } from 'crypto';
-import { validateBody } from '../middleware/auth';
+import { validateBody, errorDetail } from '../middleware/auth';
 import { firebase, upsertUserOnSignIn } from '../services/firebase';
 
 const router = Router();
@@ -87,7 +87,8 @@ router.post('/verify', validateBody(VerifySchema), async (req: Request, res: Res
   try {
     recovered = ethers.verifyMessage(message, signature);
   } catch (err) {
-    res.status(400).json({ error: 'Invalid signature', detail: String(err) });
+    console.warn('[Auth] Signature verify error:', err);
+    res.status(400).json({ error: 'Invalid signature', detail: errorDetail(err) });
     return;
   }
 
@@ -107,7 +108,7 @@ router.post('/verify', validateBody(VerifySchema), async (req: Request, res: Res
     res.json({ ok: true, customToken, user });
   } catch (err) {
     console.error('[Auth] Failed to mint custom token:', err);
-    res.status(500).json({ error: 'Failed to issue session', detail: String(err) });
+    res.status(500).json({ error: 'Failed to issue session', detail: errorDetail(err) });
   }
 });
 

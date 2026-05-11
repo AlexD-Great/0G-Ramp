@@ -8,6 +8,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { internalOnly } from '../middleware/auth';
 import { ogChain } from '../services/ogChain';
 import { wallet } from '../services/wallet';
 
@@ -28,7 +29,8 @@ router.get('/status', async (_req: Request, res: Response) => {
       explorer: 'https://chainscan-galileo.0g.ai',
     });
   } catch (err) {
-    res.status(502).json({ error: 'Chain unreachable', detail: String(err) });
+    console.warn('[Chain] Status query failed:', err);
+    res.status(502).json({ error: 'Chain unreachable' });
   }
 });
 
@@ -37,7 +39,8 @@ router.get('/balance/:address', async (req: Request, res: Response) => {
     const balance = await ogChain.getNativeBalance(req.params.address);
     res.json({ address: req.params.address, balance, unit: 'A0GI' });
   } catch (err) {
-    res.status(502).json({ error: String(err) });
+    console.warn('[Chain] Upstream error:', err);
+    res.status(502).json({ error: 'Chain RPC unreachable' });
   }
 });
 
@@ -46,7 +49,8 @@ router.get('/token/:token/:address', async (req: Request, res: Response) => {
     const balance = await ogChain.getTokenBalance(req.params.token, req.params.address);
     res.json({ token: req.params.token, address: req.params.address, balance });
   } catch (err) {
-    res.status(502).json({ error: String(err) });
+    console.warn('[Chain] Upstream error:', err);
+    res.status(502).json({ error: 'Chain RPC unreachable' });
   }
 });
 
@@ -64,11 +68,12 @@ router.get('/tx/:hash', async (req: Request, res: Response) => {
       explorerUrl: ogChain.explorerUrl(req.params.hash),
     });
   } catch (err) {
-    res.status(502).json({ error: String(err) });
+    console.warn('[Chain] Upstream error:', err);
+    res.status(502).json({ error: 'Chain RPC unreachable' });
   }
 });
 
-router.get('/wallet', async (_req: Request, res: Response) => {
+router.get('/wallet', internalOnly, async (_req: Request, res: Response) => {
   try {
     const [native, gasOk] = await Promise.all([
       wallet.getNativeBalance(),
@@ -81,7 +86,8 @@ router.get('/wallet', async (_req: Request, res: Response) => {
       gasHealthy: gasOk,
     });
   } catch (err) {
-    res.status(502).json({ error: String(err) });
+    console.warn('[Chain] Upstream error:', err);
+    res.status(502).json({ error: 'Chain RPC unreachable' });
   }
 });
 

@@ -19,7 +19,8 @@ router.get('/services', async (_req: Request, res: Response) => {
     const services = await ogCompute.listServices();
     res.json({ services });
   } catch (err) {
-    res.status(502).json({ error: String(err) });
+    console.warn('[Compute] Upstream error:', err);
+    res.status(502).json({ error: 'Compute network unreachable' });
   }
 });
 
@@ -28,7 +29,8 @@ router.get('/balance', async (_req: Request, res: Response) => {
     const balance = await ogCompute.getLedgerBalance();
     res.json({ balance, unit: 'A0GI' });
   } catch (err) {
-    res.status(502).json({ error: String(err) });
+    console.warn('[Compute] Upstream error:', err);
+    res.status(502).json({ error: 'Compute network unreachable' });
   }
 });
 
@@ -45,7 +47,8 @@ router.post(
       const balance = await ogCompute.getLedgerBalance();
       res.json({ ok: true, newBalance: balance, unit: 'A0GI' });
     } catch (err) {
-      res.status(502).json({ error: String(err) });
+      console.warn('[Compute] Upstream error:', err);
+    res.status(502).json({ error: 'Compute network unreachable' });
     }
   }
 );

@@ -20,7 +20,7 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import Stripe from 'stripe';
 import { config } from '../config';
-import { validateBody } from '../middleware/auth';
+import { validateBody, errorDetail } from '../middleware/auth';
 import { requireAuth } from '../middleware/firebaseAuth';
 import { getUser, patchUser } from '../services/firebase';
 import { ogCompute } from '../services/ogCompute';
@@ -142,7 +142,7 @@ router.post('/create-checkout-session', requireAuth, validateBody(CheckoutSchema
   } catch (err) {
     console.error('[Payments] Stripe session creation failed:', err);
     txStore.set(tx.id, { ...tx, status: 'failed', updatedAt: Date.now() });
-    res.status(502).json({ error: 'Failed to create Stripe session', detail: String(err) });
+    res.status(502).json({ error: 'Failed to create Stripe session', detail: errorDetail(err) });
   }
 });
 
@@ -362,7 +362,8 @@ router.get('/treasury', async (_req: Request, res: Response) => {
     const balance = await payoutService.treasuryBalance();
     res.json({ contract: payoutService.contractAddress(), balance, unit: '0G' });
   } catch (err) {
-    res.status(502).json({ error: String(err) });
+    console.warn('[Payments] Treasury query failed:', err);
+    res.status(502).json({ error: 'Treasury query failed' });
   }
 });
 

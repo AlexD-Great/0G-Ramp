@@ -25,7 +25,8 @@ router.post('/upload', internalOnly, validateBody(UploadSchema), async (req: Req
     const result = await ogStorage.uploadBytes(data);
     res.status(201).json({ ok: true, ...result });
   } catch (err) {
-    res.status(502).json({ error: String(err) });
+    console.warn('[Storage] Upstream error:', err);
+    res.status(502).json({ error: 'Storage operation failed' });
   }
 });
 
@@ -34,7 +35,8 @@ router.get('/download/:root', internalOnly, async (req: Request, res: Response) 
     const data = await ogStorage.downloadByRoot(req.params.root);
     res.json({ rootHash: req.params.root, dataBase64: data.toString('base64'), size: data.length });
   } catch (err) {
-    res.status(502).json({ error: String(err) });
+    console.warn('[Storage] Upstream error:', err);
+    res.status(502).json({ error: 'Storage operation failed' });
   }
 });
 
@@ -43,7 +45,8 @@ router.get('/verify/:root', async (req: Request, res: Response) => {
     const exists = await ogStorage.verifyRootOnChain(req.params.root);
     res.json({ rootHash: req.params.root, onChain: exists });
   } catch (err) {
-    res.status(502).json({ error: String(err) });
+    console.warn('[Storage] Upstream error:', err);
+    res.status(502).json({ error: 'Storage operation failed' });
   }
 });
 

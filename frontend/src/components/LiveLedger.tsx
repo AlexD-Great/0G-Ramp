@@ -1,8 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api, type RampTx } from '../lib/api';
+import { api, type PublicRampTx } from '../lib/api';
 
-const EXPLORER = 'https://chainscan-galileo.0g.ai';
 const STATUS_PROGRESS: Record<string, string> = {
   settled: '100%',
   payout: '80%',
@@ -12,7 +11,7 @@ const STATUS_PROGRESS: Record<string, string> = {
 };
 
 export default function LiveLedger({ refreshKey = 0 }: { refreshKey?: number }) {
-  const [txs, setTxs] = useState<RampTx[]>([]);
+  const [txs, setTxs] = useState<PublicRampTx[]>([]);
   const [err, setErr] = useState(false);
 
   useEffect(() => {
@@ -73,11 +72,7 @@ export default function LiveLedger({ refreshKey = 0 }: { refreshKey?: number }) 
             </div>
             <div className="flex gap-2" style={{ fontSize: '0.6rem' }}>
               <a href="/insight" style={{ flex: 1, textAlign: 'center', padding: '0.35rem', border: '1px solid var(--outline-variant)', borderRadius: '2px', color: 'var(--on-surface-variant)', textDecoration: 'none' }}>RECEIPT</a>
-              {tx.txHash0G ? (
-                <a href={`${EXPLORER}/tx/${tx.txHash0G}`} target="_blank" rel="noreferrer" style={{ flex: 1, textAlign: 'center', padding: '0.35rem', border: '1px solid var(--tertiary)', borderRadius: '2px', color: 'var(--tertiary)', textDecoration: 'none' }}>EXPLORER</a>
-              ) : (
-                <span style={{ flex: 1, textAlign: 'center', padding: '0.35rem', border: '1px solid var(--outline-variant)', borderRadius: '2px', color: 'var(--on-surface-variant)', opacity: 0.5 }}>NO HASH YET</span>
-              )}
+              <span style={{ flex: 1, textAlign: 'center', padding: '0.35rem', border: '1px solid var(--outline-variant)', borderRadius: '2px', color: 'var(--on-surface-variant)' }}>{tx.userAddressMasked}</span>
             </div>
           </div>
         );

@@ -1,11 +1,9 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { api, type RampTx } from '../lib/api';
-
-const EXPLORER = 'https://chainscan-galileo.0g.ai';
+import { api, type PublicRampTx } from '../lib/api';
 
 export default function LiveLedgerTable() {
-  const [txs, setTxs] = useState<RampTx[]>([]);
+  const [txs, setTxs] = useState<PublicRampTx[]>([]);
   const [filter, setFilter] = useState('');
   const [err, setErr] = useState(false);
 
@@ -29,7 +27,7 @@ export default function LiveLedgerTable() {
     const q = filter.toLowerCase();
     return txs.filter((tx) =>
       tx.id.toLowerCase().includes(q) ||
-      tx.userAddress.toLowerCase().includes(q) ||
+      tx.userAddressMasked.toLowerCase().includes(q) ||
       tx.assetSymbol.toLowerCase().includes(q) ||
       tx.status.toLowerCase().includes(q),
     );
@@ -92,13 +90,7 @@ export default function LiveLedgerTable() {
                     </span>
                   </td>
                   <td style={{ padding: '1.5rem 1rem', color: 'var(--on-surface-variant)' }}>
-                    {tx.txHash0G ? (
-                      <a href={`${EXPLORER}/tx/${tx.txHash0G}`} target="_blank" rel="noreferrer" style={{ color: 'var(--tertiary)' }}>
-                        {tx.txHash0G.slice(0, 6)}…{tx.txHash0G.slice(-4)}
-                      </a>
-                    ) : (
-                      <span>{tx.userAddress.slice(0, 6)}…{tx.userAddress.slice(-4)}</span>
-                    )}
+                    <span>{tx.userAddressMasked}</span>
                   </td>
                 </tr>
               ))}
@@ -120,15 +112,7 @@ export default function LiveLedgerTable() {
               </div>
               <div className="row-card-line">
                 <span className="k">User</span>
-                <span className="v">
-                  {tx.txHash0G ? (
-                    <a href={`${EXPLORER}/tx/${tx.txHash0G}`} target="_blank" rel="noreferrer" style={{ color: 'var(--tertiary)' }}>
-                      {tx.txHash0G.slice(0, 6)}…{tx.txHash0G.slice(-4)}
-                    </a>
-                  ) : (
-                    <span>{tx.userAddress.slice(0, 6)}…{tx.userAddress.slice(-4)}</span>
-                  )}
-                </span>
+                <span className="v">{tx.userAddressMasked}</span>
               </div>
             </div>
           ))}

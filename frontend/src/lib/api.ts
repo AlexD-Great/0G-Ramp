@@ -92,8 +92,22 @@ export type RampTx = {
   updatedAt: number;
 };
 
+// Redacted public ledger row — server hides PII (settlement hashes, full wallet, compute IDs).
+export type PublicRampTx = {
+  id: string;
+  userAddressMasked: string;
+  assetSymbol: string;
+  amountIn: string;
+  amountOut: string;
+  feeAmount: string;
+  sourceChain: string;
+  destChain: string;
+  status: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type InitiateInput = {
-  userAddress: string;
   assetSymbol: string;
   amountIn: string;
   sourceChain: string;
@@ -139,12 +153,13 @@ export const api = {
   nativeBalance: (address: string) =>
     req<{ address: string; balance: string; unit: string }>(`/api/chain/balance/${address}`),
   computeBalance: () => req<ComputeBalance | { error: string }>('/api/compute/balance'),
-  listTransactions: () => req<{ transactions: RampTx[]; count: number }>('/api/transactions'),
+  listTransactions: () => req<{ transactions: PublicRampTx[]; count: number }>('/api/transactions'),
   myTransactions: () => req<{ transactions: RampTx[]; count: number }>('/api/transactions/mine', { auth: true }),
   initiateTransaction: (input: InitiateInput) =>
     req<{ ok: boolean; transaction: RampTx }>('/api/transactions/initiate', {
       method: 'POST',
       body: JSON.stringify(input),
+      auth: true,
     }),
   startKyc: () =>
     req<StartKycResponse>('/api/kyc/start', {

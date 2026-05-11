@@ -42,7 +42,6 @@ export default function BridgeForm({ onCreated }: { onCreated?: (tx: RampTx) => 
     try {
       setStage('creating');
       const { transaction } = await api.initiateTransaction({
-        userAddress,
         assetSymbol,
         amountIn,
         sourceChain,

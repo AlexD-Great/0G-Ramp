@@ -20,6 +20,7 @@
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
 import { config } from '../config';
+import { errorDetail } from '../middleware/auth';
 import { requireAuth } from '../middleware/firebaseAuth';
 import { getUser, patchUser, type KycStatusValue } from '../services/firebase';
 
@@ -62,7 +63,7 @@ router.post('/start', requireAuth, async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error('[KYC] Failed to create Stripe Identity session:', err);
-    res.status(502).json({ error: 'Failed to create verification session', detail: String(err) });
+    res.status(502).json({ error: 'Failed to create verification session', detail: errorDetail(err) });
   }
 });
 
