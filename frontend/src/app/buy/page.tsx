@@ -69,42 +69,60 @@ function BuyPageInner() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  // Resume from Stripe redirect (?txId=...&status=success|cancelled)
+  // Reset all per-tx UI state when the signed-in wallet changes — otherwise a
+  // stale pipeline from the previous account could linger after sign-out/in.
+  useEffect(() => {
+    setTx(null);
+    setStage('idle');
+    setError(null);
+    setBusy(false);
+  }, [walletAddress]);
+
+  // Resume from Stripe redirect (?txId=...&status=success|cancelled).
+  // We strip the params from the URL after consuming them so a refresh,
+  // back-button navigation, or wallet switch can't resurrect a stale tx
+  // from a previous session.
   useEffect(() => {
     const txId = search.get('txId');
     const status = search.get('status');
     const sessionId = search.get('session_id');
-    if (!txId) return;
+    if (!txId || !walletAddress) return;
+    // Wait until the user is signed in so the auth header is sent — otherwise
+    // the backend returns 401 and we'd render an empty placeholder pipeline.
+
+    const clearParams = () => router.replace('/buy');
+    const onLoadFailure = (msg: string) => {
+      // Most common: 404 because the tx belongs to another wallet, or 401.
+      // Either way, don't keep the placeholder pipeline visible.
+      setTx(null);
+      setStage('idle');
+      setError(msg);
+      clearParams();
+    };
+
     if (status === 'cancelled') {
       setStage('cancelled');
-      // Render the pipeline view immediately with a placeholder so the user
-      // sees the cancellation card even if the GET below fails.
-      setTx({ id: txId, userAddress: '', assetSymbol: '0G', amountIn: '0', amountOut: '0', feeAmount: '0', sourceChain: 'STRIPE-USD', destChain: '0G-Galileo', status: 'cancelled', createdAt: Date.now(), updatedAt: Date.now() });
-      api.getTransaction(txId).then(({ transaction }) => setTx(transaction)).catch(() => {});
+      setTx({ id: txId, userAddress: walletAddress, assetSymbol: '0G', amountIn: '0', amountOut: '0', feeAmount: '0', sourceChain: 'STRIPE-USD', destChain: '0G-Galileo', status: 'cancelled', createdAt: Date.now(), updatedAt: Date.now() });
+      api.getTransaction(txId)
+        .then(({ transaction }) => { setTx(transaction); clearParams(); })
+        .catch(() => clearParams());
       return;
     }
+
     if (status === 'success') {
       setStage('verifying');
-      // Render the pipeline view immediately, even before the first fetch
-      // resolves, so the user sees progress instead of the buy form.
-      setTx((prev) => prev ?? { id: txId, userAddress: '', assetSymbol: '0G', amountIn: '—', amountOut: '—', feeAmount: '0', sourceChain: 'STRIPE-USD', destChain: '0G-Galileo', status: 'pending', createdAt: Date.now(), updatedAt: Date.now() });
+      setTx((prev) => prev ?? { id: txId, userAddress: walletAddress, assetSymbol: '0G', amountIn: '—', amountOut: '—', feeAmount: '0', sourceChain: 'STRIPE-USD', destChain: '0G-Galileo', status: 'pending', createdAt: Date.now(), updatedAt: Date.now() });
 
-      // Webhook fallback: ask the backend to verify the Stripe session and
-      // kick off the pipeline if it hasn't already. Idempotent.
-      const onErr = (err: unknown) => setError((err as Error).message || 'Failed to load transaction');
-      if (sessionId) {
-        api.finalizeCheckout(sessionId, txId)
-          .then(({ transaction }) => setTx(transaction))
-          .catch((err) => {
-            // Fall back to plain fetch — finalize can fail if Stripe key isn't set
-            // server-side; the webhook may have already settled it.
-            api.getTransaction(txId).then(({ transaction }) => setTx(transaction)).catch(() => onErr(err));
-          });
-      } else {
-        api.getTransaction(txId).then(({ transaction }) => setTx(transaction)).catch(onErr);
-      }
+      const load = sessionId
+        ? api.finalizeCheckout(sessionId, txId).then((r) => r.transaction).catch(() =>
+            api.getTransaction(txId).then((r) => r.transaction))
+        : api.getTransaction(txId).then((r) => r.transaction);
+
+      load
+        .then((transaction) => { setTx(transaction); clearParams(); })
+        .catch((err) => onLoadFailure((err as Error).message || 'Could not load this transaction. It may belong to a different wallet.'));
     }
-  }, [search]);
+  }, [search, walletAddress, router]);
 
   // Keep `stage` in sync with whatever `tx` looks like. Runs on every setTx
   // (search-effect placeholder, finalize response, getTransaction response,
@@ -133,7 +151,17 @@ function BuyPageInner() {
         const { transaction } = await api.getTransaction(tx.id);
         if (!alive) return;
         setTx(transaction);
-      } catch { /* ignore */ }
+      } catch (err) {
+        if (!alive) return;
+        // 404 → not the current user's tx (wallet switched, or stale URL).
+        // 401 → auth lost. In either case, stop showing the stale pipeline.
+        const status = (err as { status?: number }).status;
+        if (status === 404 || status === 401) {
+          setTx(null);
+          setStage('idle');
+          setError('This transaction is no longer accessible from the current account.');
+        }
+      }
     };
     tick();
     const id = setInterval(tick, 2000);
