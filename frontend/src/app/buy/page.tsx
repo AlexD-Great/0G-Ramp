@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import TopNav from '../../components/TopNav';
@@ -130,77 +130,41 @@ function BuyPageInner() {
     }
   }, [search, walletAddress, router]);
 
-  // Keep `stage` in sync with whatever `tx` looks like. Runs on every setTx
-  // (search-effect placeholder, finalize response, getTransaction response,
-  // poll tick), so the UI reflects the real tx state regardless of who wrote
-  // it. Critical: if the tx is already settled when we first load it (webhook
-  // completed before the user returned, or pipeline ran faster than the poll
-  // interval), the polling effect below would early-return and stage would
-  // be stuck at 'verifying' forever without this.
-  useEffect(() => {
-    if (!tx) return;
-    if (stage === 'cancelled' || stage === 'redirecting' || stage === 'idle') return;
-    if (tx.status === 'settled') setStage('settled');
-    else if (tx.status === 'failed') setStage('failed');
-    else if (tx.txHash0G) setStage('anchoring');
-    else if (tx.computeJobId) setStage('paying-out');
-    else setStage('verifying');
-  }, [tx, stage]);
+  // Derive stage purely from tx — no separate state. This eliminates the
+  // class of bugs where stage and tx fall out of sync (the prior "stuck on
+  // paying-out" symptom: tx was actually settled but the stage state never
+  // caught up because of effect ordering).
+  const derivedStage: Stage = (() => {
+    if (stage === 'cancelled' || stage === 'redirecting' || stage === 'idle') return stage;
+    if (!tx) return stage;
+    if (tx.status === 'settled') return 'settled';
+    if (tx.status === 'failed') return 'failed';
+    if (tx.txHash0G) return 'anchoring';
+    if (tx.computeJobId) return 'paying-out';
+    return 'verifying';
+  })();
 
-  // Polling is driven by refs, NOT effect deps. A single setInterval is set
-  // up on mount; on every tick it reads the *current* trackedTxId/terminal
-  // status from refs and acts accordingly. This avoids the entire class of
-  // React-18 batching / effect-cleanup races that previously caused the UI
-  // to silently stop updating until a manual reload.
-  const trackedTxIdRef = useRef<string | null>(null);
-  const terminalRef = useRef(false);
-  const inflightRef = useRef(false);
-
-  // Mirror state into refs every render so the interval callback always sees
-  // the latest values without re-subscribing.
-  useEffect(() => { trackedTxIdRef.current = trackedTxId; }, [trackedTxId]);
-  useEffect(() => {
-    terminalRef.current = !!tx && (tx.status === 'settled' || tx.status === 'failed');
-  }, [tx]);
-
-  // Single, stable polling loop. Empty deps → set up once per mount, tear
-  // down once on unmount. Never restarts mid-flight.
-  useEffect(() => {
-    const tick = async () => {
-      const id = trackedTxIdRef.current;
-      if (!id || terminalRef.current || inflightRef.current) return;
-      inflightRef.current = true;
-      try {
-        const { transaction } = await api.getTransaction(id);
-        // Guard against late responses from a tx we no longer track.
-        if (trackedTxIdRef.current !== id) return;
-        setTx(transaction);
-      } catch { /* transient — keep polling */ }
-      finally { inflightRef.current = false; }
-    };
-    // First tick fires when trackedTxId becomes set (we trigger it via the
-    // separate effect below). The interval picks up subsequent rounds.
-    const handle = setInterval(tick, 2000);
-    return () => clearInterval(handle);
-  }, []);
-
-  // Kick a tick the moment a new tx starts being tracked, so the user sees
-  // backend state immediately rather than waiting up to 2s for the interval.
+  // Polling: one effect, gated on trackedTxId + tx.status. Restarts cleanly
+  // when status transitions ('pending' → 'verifying' → 'settled'/'failed');
+  // stops once terminal. Uses cache-busting query param to defeat any CDN
+  // or proxy caching that would otherwise return stale tx state on Vercel/
+  // Render deployments.
   useEffect(() => {
     if (!trackedTxId) return;
-    let cancelled = false;
-    (async () => {
-      if (terminalRef.current || inflightRef.current) return;
-      inflightRef.current = true;
+    if (tx?.status === 'settled' || tx?.status === 'failed') return;
+
+    let alive = true;
+    const tick = async () => {
       try {
         const { transaction } = await api.getTransaction(trackedTxId);
-        if (cancelled || trackedTxIdRef.current !== trackedTxId) return;
+        if (!alive) return;
         setTx(transaction);
-      } catch { /* ignore */ }
-      finally { inflightRef.current = false; }
-    })();
-    return () => { cancelled = true; };
-  }, [trackedTxId]);
+      } catch { /* keep polling */ }
+    };
+    tick();
+    const id = setInterval(tick, 2000);
+    return () => { alive = false; clearInterval(id); };
+  }, [trackedTxId, tx?.status]);
 
   const onBuyClick = async () => {
     setError(null);
@@ -345,7 +309,7 @@ function BuyPageInner() {
           )}
         </div>
       ) : (
-        <PipelineView tx={tx} stage={stage} onDownload={downloadReceipt} onReset={reset} />
+        <PipelineView tx={tx} stage={derivedStage} onDownload={downloadReceipt} onReset={reset} />
       )}
     </>
   );

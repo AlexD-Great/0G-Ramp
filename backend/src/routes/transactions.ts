@@ -106,6 +106,11 @@ router.get('/:id', requireAuth, (req: Request, res: Response) => {
     computeResult = ogCompute.getJobResult(tx.computeJobId);
   }
 
+  // Tx state changes mid-pipeline (computeJobId → txHash0G → settled). Any
+  // intermediate cache (CDN, proxy, browser) that serves a stale response
+  // would leave the frontend stuck on an earlier stage post-payment.
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
   res.json({ transaction: tx, computeResult });
 });
 
