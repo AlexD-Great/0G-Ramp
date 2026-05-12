@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import TopNav from '../../components/TopNav';
@@ -147,28 +147,59 @@ function BuyPageInner() {
     else setStage('verifying');
   }, [tx, stage]);
 
-  // Poll the tracked tx until it reaches a terminal state. Depends ONLY on
-  // trackedTxId so the effect sets up exactly once per tx — its own setTx
-  // calls don't cause it to tear down and rebuild on every tick. The
-  // terminal-state check happens inside tick (using the response, not a
-  // captured tx) so the polling stops cleanly when settled.
+  // Polling is driven by refs, NOT effect deps. A single setInterval is set
+  // up on mount; on every tick it reads the *current* trackedTxId/terminal
+  // status from refs and acts accordingly. This avoids the entire class of
+  // React-18 batching / effect-cleanup races that previously caused the UI
+  // to silently stop updating until a manual reload.
+  const trackedTxIdRef = useRef<string | null>(null);
+  const terminalRef = useRef(false);
+  const inflightRef = useRef(false);
+
+  // Mirror state into refs every render so the interval callback always sees
+  // the latest values without re-subscribing.
+  useEffect(() => { trackedTxIdRef.current = trackedTxId; }, [trackedTxId]);
+  useEffect(() => {
+    terminalRef.current = !!tx && (tx.status === 'settled' || tx.status === 'failed');
+  }, [tx]);
+
+  // Single, stable polling loop. Empty deps → set up once per mount, tear
+  // down once on unmount. Never restarts mid-flight.
+  useEffect(() => {
+    const tick = async () => {
+      const id = trackedTxIdRef.current;
+      if (!id || terminalRef.current || inflightRef.current) return;
+      inflightRef.current = true;
+      try {
+        const { transaction } = await api.getTransaction(id);
+        // Guard against late responses from a tx we no longer track.
+        if (trackedTxIdRef.current !== id) return;
+        setTx(transaction);
+      } catch { /* transient — keep polling */ }
+      finally { inflightRef.current = false; }
+    };
+    // First tick fires when trackedTxId becomes set (we trigger it via the
+    // separate effect below). The interval picks up subsequent rounds.
+    const handle = setInterval(tick, 2000);
+    return () => clearInterval(handle);
+  }, []);
+
+  // Kick a tick the moment a new tx starts being tracked, so the user sees
+  // backend state immediately rather than waiting up to 2s for the interval.
   useEffect(() => {
     if (!trackedTxId) return;
-    let alive = true;
-    let id: ReturnType<typeof setInterval> | null = null;
-    const stop = () => { if (id !== null) { clearInterval(id); id = null; } };
-    const tick = async () => {
-      if (!alive) return;
+    let cancelled = false;
+    (async () => {
+      if (terminalRef.current || inflightRef.current) return;
+      inflightRef.current = true;
       try {
         const { transaction } = await api.getTransaction(trackedTxId);
-        if (!alive) return;
+        if (cancelled || trackedTxIdRef.current !== trackedTxId) return;
         setTx(transaction);
-        if (transaction.status === 'settled' || transaction.status === 'failed') stop();
-      } catch { /* transient — keep polling, never eject the user */ }
-    };
-    tick();
-    id = setInterval(tick, 2000);
-    return () => { alive = false; stop(); };
+      } catch { /* ignore */ }
+      finally { inflightRef.current = false; }
+    })();
+    return () => { cancelled = true; };
   }, [trackedTxId]);
 
   const onBuyClick = async () => {
