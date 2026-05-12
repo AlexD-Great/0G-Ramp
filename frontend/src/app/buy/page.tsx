@@ -37,10 +37,12 @@ function BuyPageInner() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [treasury, setTreasury] = useState<Treasury | null>(null);
   const [tx, setTx] = useState<RampTx | null>(null);
-  // True once the backend has confirmed `tx` exists for the current user.
-  // Until then, `tx` is just a UI placeholder and we must NOT poll (the poll
-  // would race the search-effect load and could surface a transient 404).
-  const [txConfirmed, setTxConfirmed] = useState(false);
+  // ID of the backend-confirmed tx we're polling. Kept separate from `tx` so
+  // the polling effect doesn't tear itself down on every successful tick (each
+  // setTx changes the tx reference; depending on it caused the effect to
+  // constantly clean up + re-setup, which raced React 18 batching and made
+  // polling silently stall — forcing the user to reload to see settled state).
+  const [trackedTxId, setTrackedTxId] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -77,7 +79,7 @@ function BuyPageInner() {
   // stale pipeline from the previous account could linger after sign-out/in.
   useEffect(() => {
     setTx(null);
-    setTxConfirmed(false);
+    setTrackedTxId(null);
     setStage('idle');
     setError(null);
     setBusy(false);
@@ -98,7 +100,7 @@ function BuyPageInner() {
     const clearParams = () => router.replace('/buy');
     const onLoadFailure = (msg: string) => {
       setTx(null);
-      setTxConfirmed(false);
+      setTrackedTxId(null);
       setStage('idle');
       setError(msg);
       clearParams();
@@ -108,7 +110,7 @@ function BuyPageInner() {
       setStage('cancelled');
       setTx({ id: txId, userAddress: walletAddress, assetSymbol: '0G', amountIn: '0', amountOut: '0', feeAmount: '0', sourceChain: 'STRIPE-USD', destChain: '0G-Galileo', status: 'cancelled', createdAt: Date.now(), updatedAt: Date.now() });
       api.getTransaction(txId)
-        .then(({ transaction }) => { setTx(transaction); setTxConfirmed(true); clearParams(); })
+        .then(({ transaction }) => { setTx(transaction); setTrackedTxId(transaction.id); clearParams(); })
         .catch(() => clearParams());
       return;
     }
@@ -123,7 +125,7 @@ function BuyPageInner() {
         : api.getTransaction(txId).then((r) => r.transaction);
 
       load
-        .then((transaction) => { setTx(transaction); setTxConfirmed(true); clearParams(); })
+        .then((transaction) => { setTx(transaction); setTrackedTxId(transaction.id); clearParams(); })
         .catch((err) => onLoadFailure((err as Error).message || 'Could not load this transaction. It may belong to a different wallet.'));
     }
   }, [search, walletAddress, router]);
@@ -145,25 +147,29 @@ function BuyPageInner() {
     else setStage('verifying');
   }, [tx, stage]);
 
-  // Poll the ramp tx until it reaches a terminal state.
-  // Gated on txConfirmed so we never poll a UI placeholder — that would race
-  // the search-effect load and surface transient backend errors as a hard
-  // failure shown to every user post-payment.
+  // Poll the tracked tx until it reaches a terminal state. Depends ONLY on
+  // trackedTxId so the effect sets up exactly once per tx — its own setTx
+  // calls don't cause it to tear down and rebuild on every tick. The
+  // terminal-state check happens inside tick (using the response, not a
+  // captured tx) so the polling stops cleanly when settled.
   useEffect(() => {
-    if (!txConfirmed || !tx || tx.status === 'settled' || tx.status === 'failed') return;
-    if (stage === 'cancelled') return;
+    if (!trackedTxId) return;
     let alive = true;
+    let id: ReturnType<typeof setInterval> | null = null;
+    const stop = () => { if (id !== null) { clearInterval(id); id = null; } };
     const tick = async () => {
+      if (!alive) return;
       try {
-        const { transaction } = await api.getTransaction(tx.id);
+        const { transaction } = await api.getTransaction(trackedTxId);
         if (!alive) return;
         setTx(transaction);
+        if (transaction.status === 'settled' || transaction.status === 'failed') stop();
       } catch { /* transient — keep polling, never eject the user */ }
     };
     tick();
-    const id = setInterval(tick, 2000);
-    return () => { alive = false; clearInterval(id); };
-  }, [tx, stage, txConfirmed]);
+    id = setInterval(tick, 2000);
+    return () => { alive = false; stop(); };
+  }, [trackedTxId]);
 
   const onBuyClick = async () => {
     setError(null);
@@ -197,7 +203,7 @@ function BuyPageInner() {
 
   const reset = () => {
     setTx(null);
-    setTxConfirmed(false);
+    setTrackedTxId(null);
     setStage('idle');
     setError(null);
     setBusy(false);
