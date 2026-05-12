@@ -37,6 +37,10 @@ function BuyPageInner() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [treasury, setTreasury] = useState<Treasury | null>(null);
   const [tx, setTx] = useState<RampTx | null>(null);
+  // True once the backend has confirmed `tx` exists for the current user.
+  // Until then, `tx` is just a UI placeholder and we must NOT poll (the poll
+  // would race the search-effect load and could surface a transient 404).
+  const [txConfirmed, setTxConfirmed] = useState(false);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,6 +77,7 @@ function BuyPageInner() {
   // stale pipeline from the previous account could linger after sign-out/in.
   useEffect(() => {
     setTx(null);
+    setTxConfirmed(false);
     setStage('idle');
     setError(null);
     setBusy(false);
@@ -92,9 +97,8 @@ function BuyPageInner() {
 
     const clearParams = () => router.replace('/buy');
     const onLoadFailure = (msg: string) => {
-      // Most common: 404 because the tx belongs to another wallet, or 401.
-      // Either way, don't keep the placeholder pipeline visible.
       setTx(null);
+      setTxConfirmed(false);
       setStage('idle');
       setError(msg);
       clearParams();
@@ -104,7 +108,7 @@ function BuyPageInner() {
       setStage('cancelled');
       setTx({ id: txId, userAddress: walletAddress, assetSymbol: '0G', amountIn: '0', amountOut: '0', feeAmount: '0', sourceChain: 'STRIPE-USD', destChain: '0G-Galileo', status: 'cancelled', createdAt: Date.now(), updatedAt: Date.now() });
       api.getTransaction(txId)
-        .then(({ transaction }) => { setTx(transaction); clearParams(); })
+        .then(({ transaction }) => { setTx(transaction); setTxConfirmed(true); clearParams(); })
         .catch(() => clearParams());
       return;
     }
@@ -119,7 +123,7 @@ function BuyPageInner() {
         : api.getTransaction(txId).then((r) => r.transaction);
 
       load
-        .then((transaction) => { setTx(transaction); clearParams(); })
+        .then((transaction) => { setTx(transaction); setTxConfirmed(true); clearParams(); })
         .catch((err) => onLoadFailure((err as Error).message || 'Could not load this transaction. It may belong to a different wallet.'));
     }
   }, [search, walletAddress, router]);
@@ -142,8 +146,11 @@ function BuyPageInner() {
   }, [tx, stage]);
 
   // Poll the ramp tx until it reaches a terminal state.
+  // Gated on txConfirmed so we never poll a UI placeholder — that would race
+  // the search-effect load and surface transient backend errors as a hard
+  // failure shown to every user post-payment.
   useEffect(() => {
-    if (!tx || tx.status === 'settled' || tx.status === 'failed') return;
+    if (!txConfirmed || !tx || tx.status === 'settled' || tx.status === 'failed') return;
     if (stage === 'cancelled') return;
     let alive = true;
     const tick = async () => {
@@ -151,22 +158,12 @@ function BuyPageInner() {
         const { transaction } = await api.getTransaction(tx.id);
         if (!alive) return;
         setTx(transaction);
-      } catch (err) {
-        if (!alive) return;
-        // 404 → not the current user's tx (wallet switched, or stale URL).
-        // 401 → auth lost. In either case, stop showing the stale pipeline.
-        const status = (err as { status?: number }).status;
-        if (status === 404 || status === 401) {
-          setTx(null);
-          setStage('idle');
-          setError('This transaction is no longer accessible from the current account.');
-        }
-      }
+      } catch { /* transient — keep polling, never eject the user */ }
     };
     tick();
     const id = setInterval(tick, 2000);
     return () => { alive = false; clearInterval(id); };
-  }, [tx, stage]);
+  }, [tx, stage, txConfirmed]);
 
   const onBuyClick = async () => {
     setError(null);
@@ -200,6 +197,7 @@ function BuyPageInner() {
 
   const reset = () => {
     setTx(null);
+    setTxConfirmed(false);
     setStage('idle');
     setError(null);
     setBusy(false);
