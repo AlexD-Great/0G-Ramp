@@ -1,12 +1,12 @@
 {
   "name": "0g-ramp-backend",
   "version": "1.0.0",
-  "description": "0G Ramp backend – orchestration layer using 0G Storage, Compute, and Chain on testnet",
+  "description": "0G Ramp backend \u2013 orchestration layer using 0G Storage, Compute, and Chain on testnet",
   "private": true,
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
+    "dev": "node init && ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "node init && tsc",
+    "start": "node init && node dist/server.js",
     "watcher": "ts-node-dev --respawn --transpile-only src/services/bridgeWatcher.ts",
     "fund-treasury": "ts-node-dev --transpile-only scripts/fund-treasury.ts"
   },
