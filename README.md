@@ -8,6 +8,7 @@ A custodial on/off-ramp built on the **0G** stack. Every ramp transaction is ver
 
 Pitchdeck pdf link: https://drive.google.com/file/d/1vQVooq8fzGxI56WPST7hgycbDXXg2tiO/view?usp=sharing
 
+Demo video: https://youtu.be/memG2WNWwUE
 ## What it does
 
 1. User submits a ramp tx via the frontend (`/terminal`) — this creates an off-chain record and kicks off an AI risk-scoring job on **0G Compute**.
