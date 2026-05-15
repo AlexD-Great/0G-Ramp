@@ -8,6 +8,10 @@ A custodial on/off-ramp built on the **0G** stack. Every ramp transaction is ver
 
 Pitchdeck pdf link: https://drive.google.com/file/d/1vQVooq8fzGxI56WPST7hgycbDXXg2tiO/view?usp=sharing
 
+0G explorer link: https://chainscan-galileo.0g.ai/address/0xe325092a271b158c5317a2cdc2a0b531ac95b743
+
+Technical Article: https://sukuna02.hashnode.dev/0g-ramp-technical-article
+
 Demo video: https://youtu.be/memG2WNWwUE
 ## What it does
 
