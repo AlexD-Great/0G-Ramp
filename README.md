@@ -128,15 +128,12 @@ OG_COMPUTE_SERVING_CONTRACT=0x0000000000000000000000000000000000000000
 OG_COMPUTE_LEDGER_CONTRACT=0x0000000000000000000000000000000000000000
 
 BRIDGE_CONTRACT_ADDRESS=0xf82Fc25C4A72aE6DCB42bB47Bf98a02cA97099a1
+PAYOUT_CONTRACT_ADDRESS=0xE325092A271b158C5317a2cdc2A0b531Ac95b743
 BRIDGE_POLL_INTERVAL_MS=6000
 
 API_SECRET=local-dev-secret-change-me
 
-# Optional / scaffolded — not yet wired end-to-end
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-PAYSTACK_SECRET_KEY=
-PAYSTACK_WEBHOOK_SECRET=
+
 ```
 
 ### 3. Configure frontend
@@ -242,6 +239,11 @@ event Deposit(
 
 Deployed on Galileo at `0xf82Fc25C4A72aE6DCB42bB47Bf98a02cA97099a1`.
 
+
+OGRampPayout.sol for automtating payouts from the custodial wallet.
+
+Deployed on Galileo at '0xE325092A271b158C5317a2cdc2A0b531Ac95b743'
+
 ### Redeploy from scratch
 
 ```bash
@@ -251,7 +253,7 @@ npm run compile
 npm run deploy
 ```
 
-Then update `BRIDGE_CONTRACT_ADDRESS` in `backend/.env`.
+Then update `BRIDGE_CONTRACT_ADDRESS` and Payout Contract Address in `backend/.env`.
 
 > **Note:** chainscan-galileo doesn't currently expose an Etherscan-compatible verification API and Sourcify doesn't list chain 16602, so programmatic contract verification is unavailable. The source is in this repo as the authoritative copy.
 
@@ -295,33 +297,19 @@ Restarts are safe: the watcher resumes from the persisted block, txs survive, no
 
 ---
 
-## What's done vs. what's missing
+## What's done
 
 ### ✅ Done (P0 + most of P1)
 
 - 0G Chain, Storage, Compute SDK integration
-- `OGRampBridge.sol` deployed + watcher in real mode
+- `OGRampBridge.sol` and `OGRampPayout.sol`deployed + watcher in real mode
+- Stripe Payments Webhook configured and Integrated.
 - Memo-correlated settlement: on-chain deposit → off-chain ramp tx → 0G Storage receipt
 - AI risk gating (high-risk txs blocked, not settled)
 - Reorg-aware event scanning + dedup
 - File-backed persistence (txs, cursor, dedup set)
 - MetaMask connect with auto-add of Galileo network
-- KYC flow (frontend + backend, file → 0G Storage + 0G Compute verification)
-
-### 🟡 Scaffolded / not wired
-
-- **Paystack payment gateway** — env vars present; not wired (Stripe is the live path)
-- **Off-ramp** — schema supports `destChain` but the fiat-out leg is unimplemented
-- **Verified contract on chainscan** — blocked by 0G's explorer not exposing a verify API
-
-### 🔴 Production hardening (not done)
-
-- Hot wallet → HSM/KMS instead of plain `.env`
-- Real DB (Postgres) for multi-instance deploys
-- Per-user rate limits + auth/JWT on public POST routes
-- Test suite (Vitest, Playwright)
-- Error boundaries on the frontend
-- Env validation at boot (zod) with prod-mode hard fail
+- KYC flow (frontend + backend, file → 0G Storage + Stripe Identity + 0G Compute verification)
 
 ---
 
